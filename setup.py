@@ -38,7 +38,6 @@ if tempo2 is None:
     if found:
         tempo2 = found[0]
         print "Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2)
-        sys.exit(1)
     else:
         print """
 Sorry, but I need you to point me to the tempo2 install root
