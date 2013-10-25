@@ -1,0 +1,6 @@
+include setup.py
+include libstempo.pyx
+include libstempo.c
+include Makefile
+include libstempo-demo.ipynb
+include libstempo-toasim-demo.ipynb
