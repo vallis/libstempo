@@ -70,7 +70,7 @@ cdef extern from "tempo2.h":
     void formResiduals(pulsar *psr,int npsr,int removeMean)
     void doFit(pulsar *psr,int npsr,int writeModel)
 
-    void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos)
+    void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos,int ipsr)
 
     int turn_hms(double turn,char *hms)
 
@@ -424,7 +424,7 @@ cdef class tempopulsar:
 
         for i in range(self.nobs):
             # always fit for arbitrary offset... that's the "+1"
-            FITfuncs(obsns[i].bat - epoch,&ret[i,0],self.ndim+1,&self.psr[0],i)
+            FITfuncs(obsns[i].bat - epoch,&ret[i,0],self.ndim+1,&self.psr[0],i,0)
 
         return ret
 
