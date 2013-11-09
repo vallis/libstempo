@@ -48,14 +48,14 @@ Sorry, but I need you to point me to the tempo2 install root
 print numpy.get_include()
 
 setup(name = 'libstempo',
-      version = '1.0.3',
+      version = '1.0.4',
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
       author_email = 'vallis@vallis.org',
       url = 'https://github.com/vallis/mc3pta',
 
-      ext_modules = cythonize(Extension('libstempo',['libstempo.pyx'],
+      ext_modules = cythonize(Extension('libstempo',['libstempo.pyx'],language="c++",
                                         include_dirs = [tempo2 + '/include',numpy.get_include()],
                                         libraries = ['tempo2'],
                                         library_dirs = [tempo2 + '/lib']))
