@@ -70,6 +70,8 @@ cdef extern from "tempo2.h":
     void formResiduals(pulsar *psr,int npsr,int removeMean)
     void doFit(pulsar *psr,int npsr,int writeModel)
 
+    # for tempo2 versions older than, change to
+    # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos)
     void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos,int ipsr)
 
     int turn_hms(double turn,char *hms)
@@ -346,75 +348,76 @@ cdef class tempopulsar:
     def __getitem__(self,key):
         return self.pardict[key]
 
+    def __contains__(self,key):
+        return key in self.pardict
+
     property pars:
+        """Returns tuple of names of parameters that are fitted (deprecated, use fitpars)."""
         def __get__(self):
-            """Returns tuple of names of parameters that are fitted (deprecated, use fitpars)."""
             return self.fitpars
 
     property fitpars:
+        """Returns tuple of names of parameters that are fitted."""
         def __get__(self):
-            """Returns tuple of names of parameters that are fitted."""
             return tuple(key for key in self.pardict if self.pardict[key].fit)
 
     property setpars:
+        """Returns tuple of names of parameters that have been set."""
         def __get__(self):
-            """Returns tuple of names of parameters that have been set."""
             return tuple(key for key in self.pardict if self.pardict[key].set)
 
     property allpars:
+        """Returns tuple of names of all tempo2 parameters (whether set or unset, fit or not fit)."""
         def __get__(self):
-            """Returns tuple of names of all tempo2 parameters (whether set or unset, fit or not fit)."""
             return tuple(self.pardict)
 
     property vals:
+        """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that are fitted (deprecated, use fitvals)."""
         def __get__(self):
-            """Returns a numpy longdouble vector of values of all parameters that are fitted (deprecated, use fitvals)."""
             return self.fitvals
 
         def __set__(self,values):
-            """Set the values of all parameters that are fitted (deprecated, use fitvals). Takes a sequence."""
             self.fitvals = values
 
     property errs:
+        """Returns a numpy longdouble vector of errors of all parameters that are fitted."""
         def __get__(self):
             return self.fiterrs
 
     property fitvals:
+        """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that are fitted."""
         def __get__(self):
-            """Returns a numpy longdouble vector of values of all parameters that are fitted."""
             ret = numpy.fromiter((self.pardict[par].val for par in self.fitpars),numpy.longdouble)
             ret.flags.writeable = False
             return ret
 
         def __set__(self,values):
-            """Set the values of all parameters that are fitted. Takes a sequence."""
             for par,value in zip(self.fitpars,values):
                 self.pardict[par].val = value
                 self.pardict[par].err = 0
 
     property fiterrs:
+        """Returns a numpy longdouble vector of errors of all parameters that are fitted."""
         def __get__(self):
-            """Returns a numpy longdouble vector of errors of all parameters that are fitted."""
             ret = numpy.fromiter((self.pardict[par].err for par in self.fitpars),numpy.longdouble)
             ret.flags.writeable = False
             return ret
 
     property setvals:
+        """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that have been set."""
         def __get__(self):
-            """Returns a numpy longdouble vector of values of all parameters that have been set."""
             ret = numpy.fromiter((self.pardict[par].val for par in self.setpars),numpy.longdouble)
             ret.flags.writeable = False
             return ret
 
         def __set__(self,values):
-            """Set the values of all parameters that have been set. Takes a sequence."""
             for par,value in zip(self.setpars,values):
                 self.pardict[par].val = value
                 self.pardict[par].err = 0
 
     property seterrs:
+        """Returns a numpy longdouble vector of errors of all parameters that have been set."""
         def __get__(self):
-            """Returns a numpy longdouble vector of errors of all parameters that have been set."""
             ret = numpy.fromiter((self.pardict[par].err for par in self.setpars),numpy.longdouble)
             ret.flags.writeable = False
             return ret
@@ -447,7 +450,7 @@ cdef class tempopulsar:
 
     # return TOA errors in microseconds (numpy.double array)
     property toaerrs:
-        """Return a (read-only) array of TOA errors in microseconds."""
+        """Returns a (read-only) array of TOA errors in microseconds."""
         def __get__(self):
             cdef double [:] _toaerrs = <double [:self.nobs]>&(self.psr[0].obsn[0].toaErr)
             _toaerrs.strides[0] = sizeof(observation)
@@ -489,13 +492,15 @@ cdef class tempopulsar:
         cdef long double epoch = self.psr[0].param[param_pepoch].val[0]
         cdef observation *obsns = self.psr[0].obsn
 
+        # the +1 is because tempo2 always fits for an arbitrary offset...
         cdef int ma = self.ndim + 1
 
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
 
         for i in range(self.nobs):
-            # always fit for arbitrary offset... that's the "+1" in the definition of ma
+            # for tempo2 versions older than, change to
+            # FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i)
             FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i,0)
 
         return ret
