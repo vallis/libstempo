@@ -48,7 +48,7 @@ Sorry, but I need you to point me to the tempo2 install root
 print numpy.get_include()
 
 setup(name = 'libstempo',
-      version = '1.1.1',
+      version = '1.1.2',
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',

@@ -359,7 +359,7 @@ cdef class tempopulsar:
     property fitpars:
         """Returns tuple of names of parameters that are fitted."""
         def __get__(self):
-            return tuple(key for key in self.pardict if self.pardict[key].fit)
+            return tuple(key for key in self.pardict if self.pardict[key].fit and key not in ['START','FINISH'])
 
     property setpars:
         """Returns tuple of names of parameters that have been set."""
@@ -429,7 +429,7 @@ cdef class tempopulsar:
     # number of active fit parameters
     property ndim:
         def __get__(self):
-            return sum(self.pardict[par].fit for par in self.pardict)
+            return sum(self.pardict[par].fit for par in self.pardict if par not in ['START','FINISH'])
 
     # TOAs in days (numpy.longdouble array)
     def toas(self):
