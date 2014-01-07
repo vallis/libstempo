@@ -486,6 +486,11 @@ cdef class tempopulsar:
     #       self.ndim+1 = ma for FITfuncs
     #       -- Rutger
     def designmatrix(self,updatebats=True):
+        cdef int fit_start  = self['START'].fit
+        cdef int fit_finish = self['FINISH'].fit
+
+        self['START'].fit = self['FINISH'].fit = False
+
         cdef int i
         cdef numpy.ndarray[double,ndim=2] ret = numpy.zeros((self.nobs,self.ndim+1),'d')
 
@@ -502,6 +507,8 @@ cdef class tempopulsar:
             # for tempo2 versions older than, change to
             # FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i)
             FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i,0)
+
+        self['START'].fit, self['FINISH'].fit = fit_start, fit_finish
 
         return ret
 

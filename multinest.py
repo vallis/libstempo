@@ -145,15 +145,32 @@ def run(LogLikelihood,
                              POINTER(c_double),POINTER(c_double),POINTER(c_double),
                              c_double,c_double,c_double,c_void_p)
 
-    # it's actually easier to use the context, if any, at the Python level
-    # and pass a null pointer to MultiNest...
-    def loglike(cube,ndim,nparams,nullcontext):
-        args = [cube,ndim,nparams] + ([] if context is None else context)
+    if hasattr(LogLikelihood,'loglike') and hasattr(Prior,'remap') and hasattr(Prior,'prior'):
+        def loglike(cube,ndim,nparams,nullcontext):
+            # we're not using context with libstempo.like objects
 
-        if Prior:
-            Prior(*args)
+            pprior = Prior.premap(cube)
 
-        return LogLikelihood(*args)
+            # mappers are supposed to throw a ValueError if they get out of range
+            try:
+                pars = Prior.remap(cube)
+            except ValueError:
+                return -N.inf
+
+            prior = pprior * Prior.prior(pars)
+    
+            return -N.inf if not prior else math.log(prior) + LogLikelihood.loglike(pars)
+    else:
+        def loglike(cube,ndim,nparams,nullcontext):
+            # it's actually easier to use the context, if any, at the Python level
+            # and pass a null pointer to MultiNest...
+
+            args = [cube,ndim,nparams] + ([] if context is None else context)
+
+            if Prior:
+                Prior(*args)
+
+            return LogLikelihood(*args)
 
     def dumper(nSamples,nlive,nPar,
                physLive,posterior,paramConstr,
@@ -208,6 +225,72 @@ def _findfiles(multinestrun,dirname,suffix='-post_equal_weights.dat'):
 
     return filter(lambda r: os.path.isfile(r + '/' + multinestrun + suffix),root)
 
+def _getcomment(ret,filename):
+    try:
+        ret.comment = open(filename,'r').read()
+    except IOError:
+        pass
+
+def _getmeta(ret,filename):
+    meta = N.load(filename)
+
+    ret.parnames  = list(meta['name'])
+    ret.tempopars = list(meta['val'])   # somewhat legacy?
+    ret.tempo = {}
+
+    ml = N.argmax(ret.data[:,-1])
+
+    for i,par in enumerate(ret.parnames):
+        ret[par] = multinestpar()
+
+        try:
+            ret[par].val, ret[par].err = N.mean(ret.data[:,i]) + meta['offset'][i], math.sqrt(N.var(ret.data[:,i]))
+            ret[par].offset = meta['offset'][i]
+        except ValueError:
+            ret[par].val, ret[par].err = N.mean(ret.data[:,i]), math.sqrt(N.var(ret.data[:,i]))
+
+        if 'ml' in meta.dtype.names:
+            ret[par].ml = meta['ml'][i]
+        else:   
+            ret[par].ml = ret.data[ml,i] + (meta['offset'][i] if 'offset' in meta.dtype.names else 0)
+
+        ret.tempo[par] = multinestpar()
+        ret.tempo[par].val, ret.tempo[par].err = meta['val'][i], meta['err'][i]
+
+def load_mcmc(mcrun,dirname='.'):
+    root = _findfiles(mcrun,dirname,'-chain.npy')
+
+    ret = multinestdata()
+    ret.dirname = root[0]
+
+    alldata = N.load('{0}/{1}-chain.npy'.format(root[0],mcrun))
+
+    # keep all the steps
+    ret.data = alldata[:,:]
+
+    _getmeta(ret,'{0}/{1}-meta.npy'.format(root[0],mcrun))
+    _getcomment(ret,'{0}/{1}-comment.txt'.format(root[0],mcrun))
+
+    return ret
+
+def load_emcee(emceerun,dirname='.',chains=False):
+    root = _findfiles(emceerun,dirname,'-chain.npy')
+
+    ret = multinestdata()
+    ret.dirname = root[0]
+
+    alldata = N.load('{0}/{1}-chain.npy'.format(root[0],emceerun))
+
+    # keep the last iteration of the walker cloud
+    ret.data = alldata[:,-1,:]
+
+    if chains:
+        ret.chains = alldata
+
+    _getmeta(ret,'{0}/{1}-meta.npy'.format(root[0],emceerun))
+    _getcomment(ret,'{0}/{1}-comment.txt'.format(root[0],emceerun))
+
+    return ret
 
 def load(multinestrun,dirname='.'):
     root = _findfiles(multinestrun,dirname,'-post_equal_weights.dat')
@@ -221,7 +304,6 @@ def load(multinestrun,dirname='.'):
         tar.extractall(path=root[0])
 
     ret = multinestdata()
-
     ret.dirname = root[0]
 
     # get data
@@ -235,25 +317,36 @@ def load(multinestrun,dirname='.'):
         ret.ev = float(re.search(r'Global Log-Evidence           :\s*(\S*)\s*\+/-\s*(\S*)',lines[0]).group(1))
 
     # get metadata
-    try:
-        meta = N.load('{0}/{1}-meta.npy'.format(root[0],multinestrun))
-
-        ret.parnames  = list(meta['name'])
-        ret.tempopars = list(meta['val'])   # somewhat legacy?
-        ret.tempo = {}
-
-        for i,par in enumerate(ret.parnames):
-            ret[par] = multinestpar()
-            ret[par].val, ret[par].err = N.mean(ret.data[:,i]) + meta['offset'][i], math.sqrt(N.var(ret.data[:,i]))
-            ret[par].offset = meta['offset'][i]
-
-            ret.tempo[par] = multinestpar()
-            ret.tempo[par].val, ret.tempo[par].err = meta['val'][i], meta['err'][i]
-    except:
-        raise
+    _getmeta(ret,'{0}/{1}-meta.npy'.format(root[0],multinestrun))
+    _getcomment(ret,'{0}/{1}-comment.txt'.format(root[0],multinestrun))
 
     if root[0][:4] == '/tmp':
         import shutil
         shutil.rmtree(root[0])
 
     return ret
+
+def compress(rootname):
+    import sys, os, glob
+
+    dirname, filename = os.path.dirname(rootname), os.path.basename(rootname)
+
+    if filename[-1] == '-':
+        filename = filename[:-1]
+
+    files = [filename + '-' + ending for ending in ('.txt','phys_live.points','stats.dat','ev.dat',
+                                                    'post_equal_weights.dat','summary.txt','live.points',
+                                                    'post_separate.dat','meta.npy','resume.dat','comment.txt')]
+
+    cd = os.getcwd()
+    os.chdir(dirname)
+
+    os.system('tar zcf {0}.tar.gz {1}'.format(filename,' '.join(files)))
+
+    files_exclude = [filename + '-' + ending for ending in ('IS.iterinfo','IS.points','IS.ptprob')]
+
+    for f in files + files_exclude:
+        if os.path.isfile(f):
+            os.unlink(f)
+
+    os.chdir(cd)

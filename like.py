@@ -125,11 +125,23 @@ standardpriors  = {'ECC':             (0,1),
                    'log10_jitter':   (-2,2),'jitter': (0.01,100),
                    'log10_Ared':  (-16,-10),'gammared':    (0,6)}
 
-# distance -> PX mapping
+# [0,1] -> truncated positive normal
 def map_posnormal(x0,sigma):
     erfc0 = 0.5 * SS.erfc(x0/(math.sqrt(2.0) * sigma))
 
     def map(x):
+        if not (0 <= x <= 1.0): raise ValueError
+        x = erfc0 + (1.0 - erfc0) * x
+        return x0 - math.sqrt(2) * sigma * SS.erfinv(1.0 - 2.0*x)
+
+    return map
+
+# [0,1] -> normal distance with positive cut -> PX
+def map_invposnormal(x0,sigma):
+    erfc0 = 0.5 * SS.erfc(x0/(math.sqrt(2.0) * sigma))
+
+    def map(x):
+        if not (0 <= x <= 1.0): raise ValueError
         x = erfc0 + (1.0 - erfc0) * x
         return 1.0/(x0 - math.sqrt(2) * sigma * SS.erfinv(1.0 - 2.0*x))
 
@@ -141,13 +153,21 @@ def map_cosi2sini(sini_min,sini_max):
     y0, y1 = math.sqrt(1.0 - sini_max**2), math.sqrt(1.0 - sini_min**2)
 
     def map(x):
+        if not (0 <= x <= 1.0): raise ValueError
         y = y0 + x * (y1 - y0)
         return math.sqrt(1.0 - y**2)
 
     return map
 
-standardmaps    = {'SINI': map_cosi2sini(0,1)}
+def map_cosi2sini_mirror():
+    def map(x):
+        if not (0 <= x <= 1.0): raise ValueError
+        y = -1.0 + 2.0*x
+        return math.sqrt(1.0 - y**2)
 
+    return map
+
+standardmaps    = {'SINI': map_cosi2sini(0,1)}
 
 class tempopar(str):
     def __new__(cls,par):
@@ -301,6 +321,10 @@ class Prior(dict):
     # as is, this is a "cube" prior suitable for multinest integration
     # it takes transformed parameters, so offsets don't matter
     def prior(self,pardict):
+        # reconstruct a dictionary if we're given a sequence 
+        if not isinstance(pardict,dict):
+            pardict = {par: pardict[i] for (i,par) in enumerate(self.searchpars)}
+
         prior = 1.0
 
         for par in self.searchpars:
@@ -345,6 +369,20 @@ class Prior(dict):
 
         return pardict
 
+    def remap_list(self,xs):
+        return [self[par].map(xs[i]) for i,par in enumerate(self.searchpars)]
+
+    def premap(self,xs):
+        pprior = 1.0
+
+        for i,par in enumerate(self.searchpars):
+            if hasattr(self[par],'preprior'):
+                pprior = pprior * self[par].preprior(xs[i])
+
+            if hasattr(self[par],'premap'):
+                xs[i] = self[par].premap(xs[i])
+
+        return pprior
 
 # still incomplete, but the idea is to show the figures that differ between str1 and str2 in bold
 def _showdiff(str1,str2):
@@ -465,6 +503,10 @@ class Loglike(object):
         return self.loglike(pardict)
 
     def loglike(self,pardict):
+        # reconstruct a dictionary if we're given a sequence 
+        if not isinstance(pardict,dict):
+            pardict = {par: pardict[i] for (i,par) in enumerate(self.searchpars)}
+
         for par in self.pars:
             self.psr[par].val = pardict[par]
 
@@ -518,10 +560,12 @@ class Loglike(object):
 
         return loglike
 
+    # currently not reporting on MCMC ML
+    # also report ML and RMS at the end of the parameters
     def report(self,data):
         tempo = [_formatval(data.tempo[par].val,data.tempo[par].err) for par in self.searchpars]
         mcmc  = [_formatval(data[par].val,      data[par].err)       for par in self.searchpars]
-        
+
         delta  = [_formatval(data[par].val-data.tempo[par].val,max(data[par].err,data.tempo[par].err),showerr=False) for par in self.searchpars]
 
         with numpy_seterr(divide='ignore'):

@@ -1,3 +1,4 @@
+import types
 import numpy as N
 import matplotlib.pyplot as P
 
@@ -11,13 +12,12 @@ def _select(p,pars,select):
             sel.append(s)
     return len(sel), sel
 
-def plothist(data,pars=[],offsets=[],select=[],ranges={},append=False,linestyle=None):
-    if hasattr(data,'data'):
+def plothist(data,pars=[],offsets=[],norms=[],select=[],weights={},ranges={},append=False,
+             bins=50,color='k',linestyle=None,title=None):
+    if hasattr(data,'data') and not isinstance(data,N.ndarray):
         # parse a multinestdata structure
-        if not pars    and hasattr(data,'parnames'):
-            pars    = data.parnames
-        if not offsets and hasattr(data,'tempopars'):
-            offsets = data.tempopars
+        if not pars and hasattr(data,'parnames'):
+            pars = data.parnames
         data = data.data
 
     p = data.shape[-1]
@@ -30,59 +30,78 @@ def plothist(data,pars=[],offsets=[],select=[],ranges={},append=False,linestyle=
             offsets = offsets + [0.0] * (p - len(offsets))
         data = data - N.array(offsets)
 
+    if norms:
+        if len(norms) < p:
+            norms = norms + [1.0] * (p - len(norms))
+        data = data / norms
+
     if select:
         p, sel = _select(p,pars,select)
         data, pars = data[:,sel], [pars[s] for s in sel]
+
+    if weights:
+        weight = 1
+        for i,par in enumerate(pars):
+            if par in weights:
+                if isinstance(weights[par],types.FunctionType):
+                    weight = weight * N.vectorize(weights[par])(data[:,i])
+                else:
+                    weight = weight * weights[par]
+    else:
+        weight = None
 
     # only need lines for multiple plots
     # lines = ['dotted','dashdot','dashed','solid']
 
     if not append:
-        P.figure(figsize=(16,3*(int((p-1)/4)+1)))
+        P.figure(figsize=(16*(min(p,4)/4.0),3*(int((p-1)/4)+1)))
 
     for i in range(p):
         # need to do this since isinstance(False,int) == True
         q = append if type(append) == int else p
-        P.subplot(int((q-1)/4)+1,4,i+1)
+        P.subplot(int((q-1)/4)+1,min(q,4),i+1)
 
         if append:
             P.hold(True)
 
         if pars[i] in ranges:
             dx = ranges[pars[i]]
-            P.hist(data[:,i],bins=int(50 * (N.max(data[:,i]) - N.min(data[:,i])) / (dx[1] - dx[0])),
-                   normed=True,histtype='step',color='k',linestyle=linestyle)
+            P.hist(data[:,i],bins=int(bins * (N.max(data[:,i]) - N.min(data[:,i])) / (dx[1] - dx[0])),
+                   weights=weight,normed=True,histtype='step',color=color,linestyle=linestyle)
             P.xlim(dx)
         else:
-            P.hist(data[:,i],bins=50,normed=True,histtype='step',color='k',linestyle=linestyle)
+            P.hist(data[:,i],bins=bins,
+                   weights=weight,normed=True,histtype='step',color=color,linestyle=linestyle)
 
         P.xlabel(pars[i])
         P.ticklabel_format(style='sci',axis='x',scilimits=(-2,2),useoffset='True')
         P.hold(False)
 
-    P.tight_layout()
+    if title and not append:
+        P.suptitle(title)
 
-    # if save:
-    #     P.suptitle('{0}-{1}'.format(psr,flms[0]))
-    #     P.savefig('figs/{0}-{1}.png'.format(psr,flms[0]))
+    P.tight_layout()
 
 # to do: should fix this histogram so that the contours are correct
 #        even for restricted ranges...
-def _plotonehist2(x,y,parx,pary,smooth,ranges={},bins=50):
+def _plotonehist2(x,y,parx,pary,smooth,ranges={},bins=50,weights=None):
     hrange = [ranges[parx] if parx in ranges else [N.min(x),N.max(x)],
               ranges[pary] if pary in ranges else [N.min(y),N.max(y)]]
 
-    [h,xs,ys] = N.histogram2d(x,y,bins=bins,normed=True,range=hrange)
+    [h,xs,ys] = N.histogram2d(x,y,bins=bins,normed=True,range=hrange,weights=weights)
     P.contourf(0.5*(xs[1:]+xs[:-1]),0.5*(ys[1:]+ys[:-1]),h.T,cmap=P.get_cmap('YlOrBr')); P.hold(True)
 
-    H,tmp1,tmp2 = N.histogram2d(x,y,bins=bins,range=hrange)
+    H,tmp1,tmp2 = N.histogram2d(x,y,bins=bins,range=hrange,weights=weights)
 
     if smooth:
         # only need scipy if we're smoothing
         import scipy.ndimage.filters as SNF
         H = SNF.gaussian_filter(H,sigma=1.5)
 
-    H = H / len(x)                  # this is not correct with weights!
+    if weights is None:
+        H = H / len(x)
+    else:
+        H = H / N.sum(H)            # I think this is right...
     Hflat = -N.sort(-H.flatten())   # sort highest to lowest
     cumprob = N.cumsum(Hflat)       # sum cumulative probability
 
@@ -102,12 +121,10 @@ def _plotonehist2(x,y,parx,pary,smooth,ranges={},bins=50):
     P.ticklabel_format(style='sci',axis='both',scilimits=(-2,2),useoffset='True')
 
 def plothist2(data,pars=[],offsets=[],smooth=False,select=[],ranges={},bins=50,diagonal=True,title=None,append=False):
-    if hasattr(data,'data'):
+    if hasattr(data,'data') and not isinstance(data,N.ndarray):
         # parse a multinestdata structure
         if not pars    and hasattr(data,'parnames'):
             pars    = data.parnames
-        if not offsets and hasattr(data,'tempopars'):
-            offsets = data.tempopars
         data = data.data
 
     m = data.shape[-1]
