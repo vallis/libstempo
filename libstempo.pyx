@@ -573,3 +573,52 @@ cdef class tempopulsar:
         stdio.sprintf(timFile,"%s",<char *>timfile)
 
         writeTim(timFile,&(self.psr[0]),'tempo2');
+
+def findpartim(pulsar,dirname='.',partimfiles=None):
+    # this general setup may be more trouble than it's worth, but I'll leave it
+    # in case it becomes useful in the future
+    sets = {}
+    sets['nanograv_12'] = {'dirname_par': '../nanograv/par',          'dirname_tim': '../nanograv/tim',
+                           'parfile': pulsar + '_NANOGrav_dfg+12.par','timfile': pulsar + '_NANOGrav_dfg+12.tim'}
+    sets['IPTA_13']     = {'dirname_par': '../IPTA/' + pulsar,        'dirname_tim': '../IPTA/' + pulsar,
+                           'parfile': pulsar + '.par',                'timfile': pulsar + '_all.tim'}
+
+    if partimfiles:
+        if partimfiles in sets:
+            parfile = dirname + '/' + sets[partimfiles]['dirname_par'] + '/' + sets[partimfiles]['parfile']
+            timfile = dirname + '/' + sets[partimfiles]['dirname_tim'] + '/' + sets[partimfiles]['timfile']
+        else:
+            parfile = dirname + '/' + partimfiles.split(',')[0]
+            timfile = dirname + '/' + partimfiles.split(',')[1]
+    else:
+        parfile = dirname + '/' + pulsar + '.par'
+        timfile = dirname + '/' + pulsar + '.tim'
+
+    if not os.path.isfile(parfile):
+        raise IOError, "[ERROR] libstempo.findpartim: cannot find parfile {0}.".format(parfile)
+    if not os.path.isfile(timfile):
+        raise IOError, "[ERROR] libstempo.findpartim: cannot find timfile {0}.".format(timfile)
+
+    # now rewrite the timfile if needed
+    if 'INCLUDE' in open(timfile,'r').read():
+        import tempfile
+        out = tempfile.NamedTemporaryFile(delete=False)
+
+        for line in open(timfile,'r').readlines():
+            if 'INCLUDE' in line:
+                m = re.match('([ #]*INCLUDE) *(.*)',line)
+                
+                if m:
+                    out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)))
+                else:
+                    out.write(line)
+            else:
+                out.write(line)
+
+        timfile = out.name
+
+    return parfile, timfile
+
+def purgetim(timfile):
+    lines = filter(lambda l: 'MODE 1' not in l,open(timfile,'r').readlines())
+    open(timfile,'w').writelines(lines)

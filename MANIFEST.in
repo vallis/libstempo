@@ -1,10 +1,12 @@
 include setup.py
 include __init__.py
 include libstempo.pyx
-include libstempo.c
+include libstempo.cpp
+include emcee.py
 include like.py
 include multinest.py
 include plot.py
+include toasim.py
 include Makefile
 include libstempo-demo.ipynb
 include libstempo-toasim-demo.ipynb

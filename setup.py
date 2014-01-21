@@ -57,7 +57,7 @@ setup(name = 'libstempo',
 
       package_dir = {'libstempo': '.'},
 
-      py_modules = ['libstempo.like','libstempo.multinest','libstempo.plot'],
+      py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee','libstempo.plot','libstempo.toasim'],
 
       ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo.pyx'],language="c++",
                                         include_dirs = [tempo2 + '/include',numpy.get_include()],

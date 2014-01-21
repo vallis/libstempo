@@ -1,4 +1,4 @@
-import sys, math, types
+import sys, math, types, re
 import numpy as N, scipy.linalg as SL, scipy.special as SS
 
 day = 24 * 3600
@@ -208,8 +208,32 @@ class tempopar(str):
             print '[WARNING] libstempo.like.range: prior {0} is narrower than range {1}.'.format(self.prior,self.range)
 
 
+def expandranges(parlist):
+    """Rewrite a list of parameters by expanding ranges (e.g., log10_efac{1-10}) into
+    individual parameters."""
+
+    ret = []
+
+    for par in parlist:
+        # match anything of the form XXX{number1-number2}
+        m = re.match('(.*)\{([0-9]+)\-([0-9]+)\}',par)
+
+        if m is None:
+            ret.append(par)
+        else:
+            # (these are strings)
+            root, number1, number2 = m.group(1), m.group(2), m.group(3)
+
+            # if number1 begins with 0s, number parameters as 00, 01, 02, ...,
+            # otherwise go with 0, 1, 2, ...
+            fmt = '{{0}}{{1:0{0}d}}'.format(len(number1)) if number1[0] == '0' else '{0}{1:d}'
+            
+            ret = ret + [fmt.format(root,i) for i in range(int(m.group(2)),int(m.group(3))+1)]
+
+    return ret
+
 # ordering of roots here is important
-def _findrange(parlist,roots=['JUMP','DMXR1_','DMXR2_','DMX_']):
+def _findrange(parlist,roots=['JUMP','DMXR1_','DMXR2_','DMX_','efac','log10_efac']):
     """Rewrite a list of parameters name by detecting ranges (e.g., JUMP1, JUMP2, ...)
     and compressing them."""
 
@@ -449,6 +473,7 @@ def numpy_seterr(**kwargs):
 class Loglike(object):
     def __init__(self,pulsar,parameters,redcomponents=10):
         self.psr, self.searchpars = pulsar, parameters
+        self.multiefac = sum('efac' in par for par in parameters) > 1
 
         self.pars = []
         self.efac, self.equad, self.Ared, self.jitter = None, None, None, None
@@ -468,10 +493,22 @@ class Loglike(object):
                 else:
                     self.pars.append(par)
 
-        self.err2 = (1.0e-6 * self.psr.toaerrs)**2
+        if self.multiefac:
+            self.sysflags = list(set(self.psr.flags['sys']))
+            self.sysflags.sort()
+
+            longest = str(len(self.sysflags)-1)
+            self.efacpars = ['efac{0:0{1}d}'.format(i,len(longest)) for i in range(len(self.sysflags))]
+
+            self.err2 = [(1.0e-6 * (self.psr.flags['sys'] == sys))**2 for sys in self.sysflags]
+
+            if N.any([not hasattr(self,efacpar) for efacpar in self.efacpars]):
+                raise KeyError, "[ERROR] libstempo.like.Loglike: when multiefac=True, you need to fit (log){0}--{1}.".format(self.efacpars[0],self.efacpars[-1])
+        else:
+            self.err2 = (1.0e-6 * self.psr.toaerrs)**2
 
         if self.equad:
-            self.ones = N.ones(len(self.err2))
+            self.ones = N.ones(len(self.psr.toaerrs))
 
         if self.Ared:
             self.redf, self.redF = _setuprednoise(self.psr,redcomponents)
@@ -510,10 +547,13 @@ class Loglike(object):
         for par in self.pars:
             self.psr[par].val = pardict[par]
 
-        if self.efac:
-            Cdiag = self.efac(pardict)**2 * self.err2
+        if self.multiefac:
+            Cdiag = sum(getattr(self,self.efacpars[i])(pardict)**2 * self.err2[i] for i in range(len(self.sysflags)))
         else:
-            Cdiag = self.err2
+            if self.efac:
+                Cdiag = self.efac(pardict)**2 * self.err2
+            else:
+                Cdiag = self.err2
 
         if self.equad:
             Cdiag = Cdiag + (1e-6*self.equad(pardict))**2 * self.ones

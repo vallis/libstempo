@@ -232,7 +232,10 @@ def _getcomment(ret,filename):
         pass
 
 def _getmeta(ret,filename):
-    meta = N.load(filename)
+    try:
+        meta = N.load(filename)
+    except IOError:
+        return
 
     ret.parnames  = list(meta['name'])
     ret.tempopars = list(meta['val'])   # somewhat legacy?
@@ -310,11 +313,14 @@ def load(multinestrun,dirname='.'):
     ret.data = N.loadtxt('{0}/{1}-post_equal_weights.dat'.format(root[0],multinestrun))[:,:-1]
 
     # get evidence
-    lines = open('{0}/{1}-stats.dat'.format(root[0],multinestrun),'r').readlines()
     try:
-        ret.ev = float(re.search(r'Global Evidence:\s*(\S*)\s*\+/-\s*(\S*)',lines[0]).group(1))
-    except:
-        ret.ev = float(re.search(r'Global Log-Evidence           :\s*(\S*)\s*\+/-\s*(\S*)',lines[0]).group(1))
+        lines = open('{0}/{1}-stats.dat'.format(root[0],multinestrun),'r').readlines()
+        try:
+            ret.ev = float(re.search(r'Global Evidence:\s*(\S*)\s*\+/-\s*(\S*)',lines[0]).group(1))
+        except:
+            ret.ev = float(re.search(r'Global Log-Evidence           :\s*(\S*)\s*\+/-\s*(\S*)',lines[0]).group(1))
+    except IOError:
+        pass
 
     # get metadata
     _getmeta(ret,'{0}/{1}-meta.npy'.format(root[0],multinestrun))
