@@ -35,6 +35,7 @@ cdef extern from "tempo2.h":
     ctypedef struct observation:
         long double sat        # site arrival time
         long double bat        # barycentric arrival time
+        int deleted            # 1 if observation deleted, -1 if not in fit
         long double prefitResidual
         long double residual
         double toaErr          # error on TOA (in us)
@@ -430,6 +431,13 @@ cdef class tempopulsar:
     property ndim:
         def __get__(self):
             return sum(self.pardict[par].fit for par in self.pardict if par not in ['START','FINISH'])
+
+    property deleted:
+        def __get__(self):
+            cdef int [:] _deleted = <int [:self.nobs]>&(self.psr[0].obsn[0].deleted)
+            _deleted.strides[0] = sizeof(observation)
+
+            return (numpy.asarray(_deleted) == 1)
 
     # TOAs in days (numpy.longdouble array)
     def toas(self):
