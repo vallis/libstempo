@@ -10,13 +10,21 @@ def make_ideal(psr):
     psr.stoas[:] -= psr.residuals() / 86400.0
     psr.fit()
 
-def add_efac(psr,efac=1.0):
-    """Add nominal TOA errors, multiplied by `efac` factor."""
+def add_efac(psr,efac=1.0,seed=None):
+    """Add nominal TOA errors, multiplied by `efac` factor.
+    Optionally take a pseudorandom-number-generator seed."""
     
+    if seed is not None:
+        N.random.seed(seed)
+
     psr.stoas[:] += efac * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
 
-def add_equad(psr,equad):
-    """Add quadrature noise of rms `equad` [s]."""
+def add_equad(psr,equad,seed=None):
+    """Add quadrature noise of rms `equad` [s].
+    Optionally take a pseudorandom-number-generator seed."""
+
+    if seed is not None:
+        N.random.seed(seed)
     
     psr.stoas[:] += (equad / day) * N.random.randn(psr.nobs)
 
@@ -65,16 +73,24 @@ def quantize_fast(times,dt=1):
 # t2, U2 = quantize_fast(N.array(psr.toas(),'d'),dt=1)
 # print N.sum((t - t2)**2), N.all(U == U2)
 
-def add_jitter(psr,equad,coarsegrain=0.1):
+def add_jitter(psr,equad,coarsegrain=0.1,seed=None):
     """Add correlated quadrature noise of rms `equad` [s],
-    with coarse-graining time `coarsegrain` [days]."""
+    with coarse-graining time `coarsegrain` [days].
+    Optionally take a pseudorandom-number-generator seed."""
     
+    if seed is not None:
+        N.random.seed(seed)
+
     t, U = quantize_fast(N.array(psr.toas(),'d'),0.1)
     psr.stoas[:] += (equad / day) * N.dot(U,N.random.randn(U.shape[1]))
 
-def add_rednoise(psr,A,gamma,components=10):
+def add_rednoise(psr,A,gamma,components=10,seed=None):
     """Add red noise with P(f) = A^2 / (12 pi^2) (f year)^-gamma,
-    using `components` Fourier bases."""
+    using `components` Fourier bases.
+    Optionally take a pseudorandom-number-generator seed."""
+
+    if seed is not None:
+        N.random.seed(seed)
     
     t = psr.toas()
     minx, maxx = N.min(t), N.max(t)

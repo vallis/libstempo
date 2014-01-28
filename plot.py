@@ -25,7 +25,7 @@ def _select(p,pars,select):
     return len(sel), sel
 
 def plothist(data,pars=[],offsets=[],norms=[],select=[],weights={},ranges={},labels={},skip=[],append=False,
-             bins=50,color='k',linestyle=None,title=None):
+             bins=50,color='k',linestyle=None,linewidth=1,title=None):
     if hasattr(data,'data') and not isinstance(data,N.ndarray):
         # parse a multinestdata structure
         if not pars and hasattr(data,'parnames'):
@@ -93,13 +93,13 @@ def plothist(data,pars=[],offsets=[],norms=[],select=[],weights={},ranges={},lab
         if pars[i] in ranges:
             dx = ranges[pars[i]]
             P.hist(data[:,i],bins=int(bins * (N.max(data[:,i]) - N.min(data[:,i])) / (dx[1] - dx[0])),
-                   weights=weight,normed=True,histtype='step',color=color,linestyle=linestyle,linewidth=1)
+                   weights=weight,normed=True,histtype='step',color=color,linestyle=linestyle,linewidth=linewidth)
             P.xlim(dx)
         else:
             P.hist(data[:,i],bins=bins,
-                   weights=weight,normed=True,histtype='step',color=color,linestyle=linestyle,linewidth=1)
+                   weights=weight,normed=True,histtype='step',color=color,linestyle=linestyle,linewidth=linewidth)
 
-        P.xlabel(labels[pars[i]] if pars[i] in labels else pars[i],fontsize=13)
+        P.xlabel(labels[pars[i]] if pars[i] in labels else pars[i])
 
         # P.ticklabel_format(style='sci',axis='both',scilimits=(-3,4),useoffset='True')
         P.locator_params(axis='both',nbins=6)
@@ -123,7 +123,10 @@ def plothist(data,pars=[],offsets=[],norms=[],select=[],weights={},ranges={},lab
 
 # to do: should fix this histogram so that the contours are correct
 #        even for restricted ranges...
-def _plotonehist2(x,y,parx,pary,smooth,colormap=True,ranges={},labels={},bins=50,weights=None):
+def _plotonehist2(x,y,parx,pary,smooth=False,colormap=True,ranges={},labels={},bins=50,levels=3,weights=None,
+                  color='k',linewidth=1):
+    hold = P.ishold()
+
     hrange = [ranges[parx] if parx in ranges else [N.min(x),N.max(x)],
               ranges[pary] if pary in ranges else [N.min(y),N.max(y)]]
 
@@ -136,7 +139,7 @@ def _plotonehist2(x,y,parx,pary,smooth,colormap=True,ranges={},labels={},bins=50
     if smooth:
         # only need scipy if we're smoothing
         import scipy.ndimage.filters as SNF
-        H = SNF.gaussian_filter(H,sigma=1.5)
+        H = SNF.gaussian_filter(H,sigma=1.5 if smooth is True else smooth)
 
     if weights is None:
         H = H / len(x)
@@ -145,23 +148,37 @@ def _plotonehist2(x,y,parx,pary,smooth,colormap=True,ranges={},labels={},bins=50
     Hflat = -N.sort(-H.flatten())   # sort highest to lowest
     cumprob = N.cumsum(Hflat)       # sum cumulative probability
 
-    levels = [N.interp(level,cumprob,Hflat) for level in (0.6826,0.9547,0.9973)]
+    levels = [N.interp(level,cumprob,Hflat) for level in [0.6826,0.9547,0.9973][:levels]]
 
     xs = N.linspace(hrange[0][0],hrange[0][1],bins)
     ys = N.linspace(hrange[1][0],hrange[1][1],bins)
 
-    P.contour(xs,ys,H.T,levels,colors='k',linestyles=('-','--','-.'),linewidths=1); P.hold(False)
+    P.contour(xs,ys,H.T,levels,
+              colors=color,linestyles=['-','--','-.'][:len(levels)],linewidths=linewidth)
+    P.hold(hold)
 
     if parx in ranges:
         P.xlim(ranges[parx])
     if pary in ranges:
         P.ylim(ranges[pary])
 
-    P.xlabel(labels[parx] if parx in labels else parx,fontsize=13)
-    P.ylabel(labels[pary] if pary in labels else pary,fontsize=13)
-    P.ticklabel_format(style='sci',axis='both',scilimits=(-2,2),useoffset='True')
+    P.xlabel(labels[parx] if parx in labels else parx)
+    P.ylabel(labels[pary] if pary in labels else pary)
 
-def plothist2(data,pars=[],offsets=[],smooth=False,colormap=True,select=[],ranges={},labels={},bins=50,weights=None,diagonal=True,title=None,append=False):
+    P.locator_params(axis='both',nbins=6)
+    P.minorticks_on()
+
+    fx = P.ScalarFormatter(useOffset=True,useMathText=True)
+    fx.set_powerlimits((-3,4)); fx.set_scientific(True)
+
+    fy = P.ScalarFormatter(useOffset=True,useMathText=True)
+    fy.set_powerlimits((-3,4)); fy.set_scientific(True)
+
+    P.gca().xaxis.set_major_formatter(fx)
+    P.gca().yaxis.set_major_formatter(fy)
+
+def plothist2(data,pars=[],offsets=[],smooth=False,colormap=True,select=[],ranges={},labels={},bins=50,levels=3,weights=None,cuts=None,
+              diagonal=True,title=None,color='k',linewidth=1,append=False):
     if hasattr(data,'data') and not isinstance(data,N.ndarray):
         # parse a multinestdata structure
         if not pars    and hasattr(data,'parnames'):
@@ -178,9 +195,11 @@ def plothist2(data,pars=[],offsets=[],smooth=False,colormap=True,select=[],range
             offsets = offsets + [0.0] * (m - len(offsets))
         data = data - N.array(offsets)
 
-    if select:
-        m, sel = _select(m,pars,select)
-        data, pars = data[:,sel], [pars[s] for s in sel]
+    if cuts:
+        for i,par in enumerate(pars):
+            if par in cuts:
+                data = data[data[:,i] > cuts[par][0],:]
+                data = data[data[:,i] < cuts[par][1],:]
 
     if weights:
         weight = 1
@@ -192,6 +211,10 @@ def plothist2(data,pars=[],offsets=[],smooth=False,colormap=True,select=[],range
                     weight = weight * weights[par]
     else:
         weight = None
+
+    if select:
+        m, sel = _select(m,pars,select)
+        data, pars = data[:,sel], [pars[s] for s in sel]
 
     if not append:
         fs = min((m if diagonal else m-1)*4,16)
@@ -212,22 +235,24 @@ def plothist2(data,pars=[],offsets=[],smooth=False,colormap=True,select=[],range
             else:
                 P.hist(data[i],bins=50,weights=weight,normed=True,histtype='step',color='k')
 
-            P.xlabel(labels[pars[i]] if pars[i] in labels else pars[i],fontsize=13)
+            P.xlabel(labels[pars[i]] if pars[i] in labels else pars[i])
             P.ticklabel_format(style='sci',axis='both',scilimits=(-2,2),useoffset='True')
-            P.tick_params(labelsize=12)
+            # P.tick_params(labelsize=12)
 
             for j in range(0,i):
                 if not append:
                     P.subplot(m,m,i*m+j+1)
 
-                _plotonehist2(data[j],data[i],pars[j],pars[i],smooth,colormap,ranges,labels,bins,weights=weight)
+                _plotonehist2(data[j],data[i],pars[j],pars[i],smooth,colormap,ranges,labels,bins,levels,weights=weight,
+                              color=color,linewidth=linewidth)
     else:
         for i in range(m-1):
             for j in range(i+1,m):
                 if not append:
                     P.subplot(m-1,m-1,(m-1)*i+j)
 
-                _plotonehist2(data[j],data[i],pars[j],pars[i],smooth,colormap,ranges,labels,bins,weights=weight)
+                _plotonehist2(data[j],data[i],pars[j],pars[i],smooth,colormap,ranges,labels,bins,levels,weights=weight,
+                              color=color,linewidth=linewidth)
 
     P.tight_layout()
 
