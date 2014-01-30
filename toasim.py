@@ -1,8 +1,53 @@
 import math, os
 import numpy as N
+import libstempo
 
 day = 24 * 3600
 year = 365.25 * day
+
+def _geti(x,i):
+    return x[i] if isinstance(x,(tuple,list,N.ndarray)) else x
+
+def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
+    """Returns a libstempo tempopulsar object corresponding to a noiseless set
+    of observations for the pulsar specified in 'parfile', with observations
+    happening at times (MJD) given in the array (or list) 'obstimes', with
+    measurement errors given by toaerr (us).
+
+    A new timfile can then be saved with pulsar.savetim(). Re the other parameters:
+    - 'toaerr' needs to be either a common error, or a list of errors
+       of the same length of 'obstimes';
+    - 'freq' can be either a common observation frequency in MHz, or a list;
+       it defaults to 1440;
+    - 'observatory' can be either a common observatory name, or a list;
+       it defaults to the IPTA MDC 'AXIS';
+    - 'flags' can be a string (such as '-sys EFF.EBPP.1360') or a list of strings;
+       it defaults to an empty string."""
+
+    import tempfile
+    outfile = tempfile.NamedTemporaryFile(delete=False)
+
+    outfile.write('FORMAT 1\n')
+    outfile.write('MODE 1\n')
+
+    obsname = 'fake_' + os.path.basename(parfile)
+    if obsname[-4:] == '.par':
+        obsname = obsname[:-4]
+
+    for i,t in enumerate(obstimes):
+        outfile.write('{0} {1} {2} {3} {4} {5}\n'.format(
+            obsname,_geti(freq,i),t,_geti(toaerr,i),_geti(observatory,i),_geti(flags,i)
+        ))
+
+    timfile = outfile.name
+    outfile.close()
+
+    pulsar = libstempo.tempopulsar(parfile,timfile,dofit=False)
+    pulsar.stoas[:] -= pulsar.residuals(updatebats=False) / 86400.0
+
+    os.remove(timfile)
+
+    return pulsar
 
 def make_ideal(psr):
     """Adjust the TOAs so that the residuals to zero, then refit."""

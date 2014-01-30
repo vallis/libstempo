@@ -215,7 +215,7 @@ cdef class tempopulsar:
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
-    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True):
+    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True,dofit=True):
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -253,13 +253,9 @@ cdef class tempopulsar:
         self.prefit.toas = self.toas()
         self.prefit.residuals = self.residuals(updatebats=False)
 
-        # always do a fit...
-        self.fit()
-
-        # updateBatsAll(self.psr,self.npsr)
-        # formResiduals(self.psr,self.npsr,1)     # 1 to remove the mean
-
-        # doFit(self.psr,self.npsr,0)
+        # do a fit if requested
+        if dofit:
+            self.fit()
 
     def __dealloc__(self):
         for i in range(self.npsr):
