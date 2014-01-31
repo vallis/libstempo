@@ -2,8 +2,30 @@ import math, os
 import numpy as N
 import libstempo
 
+from libstempo import GWB
+
 day = 24 * 3600
 year = 365.25 * day
+
+def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True):
+    """Add a stochastic background from inspiraling binaries, using the tempo2
+    code that underlies the GWbkgrd plugin.
+
+    Here 'dist' is the pulsar distance [in kpc]; 'ngw' is the number of binaries,
+    'seed' (a negative integer) reseeds the GWbkgrd pseudorandom-number-generator,
+    'flow' and 'fhigh' [Hz] determine the background band, 'gwAmp' and 'alpha'
+    determine its amplitude and exponent, and setting 'logspacing' to False
+    will use linear spacing for the individual sources.
+
+    It is also possible to create a background object with
+
+    gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
+
+    then call the method gwb.add_gwb(pulsar[i],dist) repeatedly to get a
+    consistent background for multiple pulsars."""
+
+    gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
+    gwb.add_gwb(psr,dist)
 
 def _geti(x,i):
     return x[i] if isinstance(x,(tuple,list,N.ndarray)) else x

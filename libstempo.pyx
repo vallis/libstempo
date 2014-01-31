@@ -1,4 +1,4 @@
-import os, math, re
+import os, math, re, time
 
 try:
     from collections import OrderedDict
@@ -11,6 +11,15 @@ from cython cimport view
 import numpy
 cimport numpy
 
+cdef extern from "GWsim-stub.h":
+    ctypedef struct gwSrc:
+        pass 
+
+    void GWbackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double fhi,double gwAmp,double alpha,int loglin)
+    void setupGW(gwSrc *gw)
+    void setupPulsar_GWsim(long double ra_p,long double dec_p,long double *kp)
+    long double calculateResidualGW(long double *kp,gwSrc *gw,long double obstime,long double dist)
+
 cdef extern from "tempo2.h":
     enum: MAX_PSR_VAL
     enum: MAX_FILELEN
@@ -18,6 +27,8 @@ cdef extern from "tempo2.h":
     enum: MAX_PARAMS
     enum: MAX_JUMPS
     enum: param_pepoch
+    enum: param_raj
+    enum: param_decj
 
     int MAX_PSR, MAX_OBSN
 
@@ -194,6 +205,54 @@ class prefitpar(object):
     def __str__(self):
         # TO DO: proper precision handling
         return '%s: %g +/- %g' % (self.name,self.val,self.err)
+
+cdef class GWB:
+    cdef gwSrc *gw
+    cdef int ngw
+
+    def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True):
+        self.gw = <gwSrc *>stdlib.malloc(sizeof(gwSrc)*ngw)
+        self.ngw = ngw
+
+        if seed is None:
+            seed = -int(time.time())
+
+        gwAmp = gwAmp * (86400.0*365.25)**alpha
+
+        cdef long idum = seed
+        GWbackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0)
+
+        for i in range(ngw):
+          setupGW(&self.gw[i])
+
+    def __dealloc__(self):
+        stdlib.free(self.gw)
+
+    def add_gwb(self,tempopulsar pulsar,distance=1):
+        cdef long double dist = distance * 3.086e19
+
+        cdef long double ra_p  = pulsar.psr[0].param[param_raj].val[0]
+        cdef long double dec_p = pulsar.psr[0].param[param_decj].val[0]
+
+        cdef long double epoch = pulsar.psr[0].param[param_pepoch].val[0]
+
+        cdef long double kp[3]
+
+        setupPulsar_GWsim(ra_p,dec_p,&kp[0])
+
+        cdef numpy.ndarray[long double,ndim=1] res = numpy.zeros(pulsar.nobs,numpy.longdouble)
+        cdef long double obstime
+
+        for i in range(pulsar.nobs):
+            obstime = (pulsar.psr[0].obsn[i].sat - epoch)*86400.0
+            res[i] = 0.0
+
+            for k in range(self.ngw):
+                res[i] = res[i] + calculateResidualGW(kp,&self.gw[k],obstime,dist)
+
+        res[:] = res[:] - numpy.mean(res)
+        
+        pulsar.stoas[:] += res[:] / 86400.0
 
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code

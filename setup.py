@@ -45,17 +45,17 @@ Sorry, but I need you to point me to the tempo2 install root
 """
         sys.exit(1)
 
-print numpy.get_include()
-
 setup(name = 'libstempo',
-      version = '1.2.3',
+      version = '1.2.4',
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
       author_email = 'vallis@vallis.org',
       url = 'https://github.com/vallis/mc3pta',
 
+      packages = {'libstempo'},
       package_dir = {'libstempo': '.'},
+      package_data = {'libstempo': ['data/*']},
 
       py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee','libstempo.plot','libstempo.toasim'],
 
