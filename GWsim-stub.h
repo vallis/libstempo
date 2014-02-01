@@ -1,3 +1,11 @@
+#include "tempo2.h"
+
+#ifdef HAVE_GWSIM_H
+
+#include "GWsim.h"
+
+#else
+
 typedef struct gwSrc {
     long double theta_g;
     long double phi_g;
@@ -23,3 +31,7 @@ void GWbackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double 
 long double calculateResidualGW(long double *kp,gwSrc *gw,long double time,long double dist);
 void setupPulsar_GWsim(long double ra_p,long double dec_p,long double *kp);
 
+/* Define the dummy anisotropic functions here */
+#warning "Anisotropic GWsim routines not available"
+
+#endif /* HAVE_GWSIM_H */

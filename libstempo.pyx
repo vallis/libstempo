@@ -392,7 +392,7 @@ cdef class tempopulsar:
                 if flag not in self.allflags:
                     self.allflags.append(flag)
                     # the maximum flag-value length is hard-set in tempo2.h
-                    self.flags[flag] = numpy.zeros(self.nobs,dtype='a16')
+                    self.flags[flag] = numpy.zeros(self.nobs,dtype='a32')
 
                 self.flags[flag][i] = self.psr[0].obsn[i].flagVal[j]
 
