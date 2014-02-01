@@ -69,6 +69,7 @@ cdef extern from "tempo2.h":
         double jumpVal[MAX_JUMPS]
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
+        char *binaryModel
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -81,6 +82,7 @@ cdef extern from "tempo2.h":
     void updateBatsAll(pulsar *psr,int npsr)                    # what's the difference?
     void formResiduals(pulsar *psr,int npsr,int removeMean)
     void doFit(pulsar *psr,int npsr,int writeModel)
+    void updateParameters(pulsar *psr,int p,double val[],double error[])
 
     # for tempo2 versions older than, change to
     # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos)
@@ -459,6 +461,10 @@ cdef class tempopulsar:
             ret.flags.writeable = False
             return ret
 
+        def __set__(self,values):
+            for par,value in zip(self.fitpars,values):
+                self.pardict[par].err = value
+
     property setvals:
         """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that have been set."""
         def __get__(self):
@@ -481,6 +487,10 @@ cdef class tempopulsar:
     # the best way to access prefit pars would be through the same interface:
     # psr.prefit['parname'].val, psr.prefit['parname'].err, perhaps even psr.prefit.cols
     # since the prefit values don't change, it's OK for psr.prefit to be a static attribute
+
+    property binarymodel:
+        def __get__(self):
+            return self.psr[0].binaryModel
 
     # number of active fit parameters
     property ndim:
@@ -544,11 +554,12 @@ cdef class tempopulsar:
 
         return numpy.asarray(_res).copy()
 
-    # tempo2 design matrix as numpy array [nobs x ndim]
-    # TODO: when start & finish are set, this function gives an error
-    #       self.ndim+1 = ma for FITfuncs
-    #       -- Rutger
-    def designmatrix(self,updatebats=True):
+    def designmatrix(self,updatebats=True,fixunits=False):
+        """Return the design matrix [nobs x (ndim+1)] for the current
+        fit-parameter values; if fixunits=True, adjust the units
+        of the design-matrix columns so that they match the tempo2
+        parameter units."""
+
         cdef int fit_start  = self['START'].fit
         cdef int fit_finish = self['FINISH'].fit
 
@@ -572,6 +583,23 @@ cdef class tempopulsar:
             FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i,0)
 
         self['START'].fit, self['FINISH'].fit = fit_start, fit_finish
+
+        cdef numpy.ndarray[double, ndim=1] dev, err
+
+        if fixunits:
+            dev, err = numpy.zeros(ma,'d'), numpy.ones(ma,'d')
+
+            fp = self.fitpars
+            save = [self[p].err for p in fp]
+
+            updateParameters(&self.psr[0],0,&dev[0],&err[0])
+            dev[0], dev[1:]  = 1.0, [self[p].err for p in fp]
+
+            for p,v in zip(fp,save):
+                self[p].err = v
+
+            for i in range(ma):
+                ret[:,i] /= dev[i]
 
         return ret
 
