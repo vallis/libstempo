@@ -117,9 +117,10 @@ cdef class tempopar:
                     self._paramSet[0] = 1
 
                 (<long double*>self._val)[0] = value    # can we set it to numpy.longdouble?
+                (<long double*>self._err)[0] = 0
             else:
                 (<double*>self._val)[0] = value
-
+                (<double*>self._err)[0] = 0
     property err:
         def __get__(self):
             if not self._isjump:
@@ -144,6 +145,7 @@ cdef class tempopar:
             else:
                 self._fitFlag[0] = 0
 
+    # note that paramSet is not always respected in tempo2
     property set:
         def __get__(self):
             if not self._isjump:
@@ -289,7 +291,9 @@ cdef class tempopulsar:
 
         # read par and tim file
 
+        timfile = rewritetim(timfile)
         self._readfiles(parfile,timfile)
+        os.unlink(timfile)
 
         # set tempo2 flags
 
@@ -503,6 +507,11 @@ cdef class tempopulsar:
             _deleted.strides[0] = sizeof(observation)
 
             return (numpy.asarray(_deleted) == 1)
+        def __set__(self,vals):
+            cdef int [:] _deleted = <int [:self.nobs]>&(self.psr[0].obsn[0].deleted)
+            _deleted.strides[0] = sizeof(observation)
+
+            numpy.asarray(_deleted)[:] = vals[:]
 
     # TOAs in days (numpy.longdouble array)
     def toas(self):
@@ -619,6 +628,12 @@ cdef class tempopulsar:
 
         return numpy.sum(res * res / (1e-12 * err * err))
 
+    def rms(self):
+        err = self.toaerrs
+        norm = numpy.sum(1.0 / (1e-12 * err * err))
+
+        return math.sqrt(self.chisq() / norm)
+
     # utility function
     def rd_hms(self):
         cdef char retstr[256]
@@ -690,25 +705,24 @@ def findpartim(pulsar,dirname='.',partimfiles=None):
     if not os.path.isfile(timfile):
         raise IOError, "[ERROR] libstempo.findpartim: cannot find timfile {0}.".format(timfile)
 
-    # now rewrite the timfile if needed
-    if 'INCLUDE' in open(timfile,'r').read():
-        import tempfile
-        out = tempfile.NamedTemporaryFile(delete=False)
+    return parfile, timfile
 
-        for line in open(timfile,'r').readlines():
-            if 'INCLUDE' in line:
-                m = re.match('([ #]*INCLUDE) *(.*)',line)
-                
-                if m:
-                    out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)))
-                else:
-                    out.write(line)
+def rewritetim(timfile):
+    import tempfile
+    out = tempfile.NamedTemporaryFile(delete=False)
+
+    for line in open(timfile,'r').readlines():
+        if 'INCLUDE' in line:
+            m = re.match('([ #]*INCLUDE) *(.*)',line)
+            
+            if m:
+                out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)))
             else:
                 out.write(line)
+        else:
+            out.write(line)
 
-        timfile = out.name
-
-    return parfile, timfile
+    return out.name
 
 def purgetim(timfile):
     lines = filter(lambda l: 'MODE 1' not in l,open(timfile,'r').readlines())
