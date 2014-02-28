@@ -56,6 +56,7 @@ cdef extern from "tempo2.h":
         int nFlags             # Number of flags set
         double freq            # frequency of observation (in MHz)
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
+        char telID[100]        # telescope ID
 
     ctypedef struct pulsar:
         parameter param[MAX_PARAMS]
@@ -513,6 +514,16 @@ cdef class tempopulsar:
 
             numpy.asarray(_deleted)[:] = vals[:]
 
+    property telescope:
+        def __get__(self):
+            ret = numpy.zeros(self.nobs,dtype='a32')
+            for i in range(self.nobs):
+                ret[i] = self.psr[0].obsn[i].telID
+                if ret[i] in aliases:
+                    ret[i] = aliases[ret[i]]
+
+            return ret
+
     # TOAs in days (numpy.longdouble array)
     def toas(self):
         cdef long double [:] _toas = <long double [:self.nobs]>&(self.psr[0].obsn[0].bat)
@@ -727,3 +738,11 @@ def rewritetim(timfile):
 def purgetim(timfile):
     lines = filter(lambda l: 'MODE 1' not in l,open(timfile,'r').readlines())
     open(timfile,'w').writelines(lines)
+
+aliases = {}
+if 'TEMPO2' in os.environ:
+    for line in open(os.environ['TEMPO2'] + '/observatory/aliases'):
+        toks = line.split()
+
+        if '#' not in line and len(toks) == 2:
+            aliases[toks[1]] = toks[0]
