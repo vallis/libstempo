@@ -279,13 +279,16 @@ cdef class tempopulsar:
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
-    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True,dofit=True):
+    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True,dofit=True,maxobs=None):
         # initialize
 
         global MAX_PSR, MAX_OBSN
 
         self.npsr = 1
-        MAX_PSR, MAX_OBSN = 1, MAX_OBSN_VAL     # to save memory, only allocate space for this many pulsars and observations
+
+        # to save memory, only allocate space for this many pulsars and observations
+        MAX_PSR = 1
+        MAX_OBSN = MAX_OBSN_VAL if maxobs is None else maxobs
 
         self.psr = <pulsar *>stdlib.malloc(sizeof(pulsar)*MAX_PSR)
         initialise(self.psr,1)          # 1 for no warnings
