@@ -77,13 +77,26 @@ def plothist(data,pars=[],offsets=[],norms=[],select=[],weights={},ranges={},lab
         P.figure(figsize=(16*(min(p,4)/4.0),3*(int((p-1)/4)+1)))
 
     for i in range(p):
-        # need to do this since isinstance(False,int) == True
-        q = append if type(append) == int else p
+        # figure out how big the multiplot needs to be
+        if type(append) == int:                # need this since isinstance(False,int) == True
+            q = append
+        elif isinstance(append,(list,tuple)):
+            q = len(append)
+        else:
+            q = p
         
+        # increment subplot index if we're skipping
         sp = i + 1
         for s in skip:
             if i >= s:
                 sp = sp + 1
+
+        # if we're given the actual parnames of an existing plot, figure out where we fall
+        if isinstance(append,(list,tuple)):
+            try:
+                sp = append.index(pars[i]) + 1
+            except ValueError:
+                continue
 
         P.subplot(int((q-1)/4)+1,min(q,4),sp)
 

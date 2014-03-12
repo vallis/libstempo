@@ -89,7 +89,7 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
         # Lentati formulation for correlated noise
         invphi = N.diag(1/phi)
         Ninv = N.diag(1/Cdiag)
-        NinvF = dot(Ninv,F)
+        NinvF = dot(Ninv,F)          # could be accelerated
         X = invphi + dot(F.T,NinvF)  # invphi + FTNinvF
 
         Cinv = Ninv - dot(NinvF,N.linalg.inv(X),NinvF.T)
@@ -143,7 +143,9 @@ def map_invposnormal(x0,sigma):
     def map(x):
         if not (0 <= x <= 1.0): raise ValueError
         x = erfc0 + (1.0 - erfc0) * x
-        return 1.0/(x0 - math.sqrt(2) * sigma * SS.erfinv(1.0 - 2.0*x))
+        r = 1.0/(x0 - math.sqrt(2) * sigma * SS.erfinv(1.0 - 2.0*x))
+        if r < 0: raise ValueError
+        return r
 
     return map
 
