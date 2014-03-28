@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Libstempo by vallis</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/pygment_trac.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Libstempo</h1>
+        <p>libstempo — a Python wrapper for tempo2</p>
+
+        <p class="view"><a href="https://github.com/vallis/libstempo">View the Project on GitHub <small>vallis/libstempo</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/vallis/libstempo/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/vallis/libstempo/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/vallis/libstempo">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a name="libstempo--a-python-wrapper-for-tempo2" class="anchor" href="#libstempo--a-python-wrapper-for-tempo2"><span class="octicon octicon-link"></span></a>libstempo — a Python wrapper for tempo2</h1>
+
+<h2>
+<a name="installation-notes" class="anchor" href="#installation-notes"><span class="octicon octicon-link"></span></a>Installation notes</h2>
+
+<ul>
+<li>
+<code>libstempo</code> requires Python 2.7+ (but is currently untested with Python 3), <a href="http://www.numpy.org/">numpy</a> and <a href="http://www.cython.org/">Cython</a> (v &gt; 0.19), and of course <a href="http://www.atnf.csiro.au/research/pulsar/tempo2/">tempo2</a> (v 2013.9.1 or greater).</li>
+<li>If you don't need to look at or modify the sources, you should be able to do simply <code>pip install libstempo</code>, and everything will happen for you.</li>
+<li>Otherwise, to install <code>libstempo</code> do <code>python setup.py install --prefix=...</code> (wherever you normally install). The installer will look in likely places for the <code>tempo2</code> headers and libraries, but you can also give it the installation directory using <code>--with-tempo2=...</code> (the installation directory would be <code>XXX</code> if <code>tempo2.h</code> is installed to <code>XXX/include</code>).</li>
+<li>If the standard installation does not work, there's a <code>Makefile</code> (written for OS X) that you could try.</li>
+</ul><h2>
+<a name="documentation" class="anchor" href="#documentation"><span class="octicon octicon-link"></span></a>Documentation</h2>
+
+<p>For the moment, <em>in lieu</em> of documentation, have a look at this <a href="http://nbviewer.ipython.org/urls/raw.github.com/vallis/mc3pta/master/libstempo/libstempo-demo.ipynb">tutorial</a> (an <a href="http://ipython.org/notebook.html">iPython notebook</a>, visualized thanks to the <a href="http://nbviewer.ipython.org/">nbviewer</a> service).</p>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/vallis">vallis</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
