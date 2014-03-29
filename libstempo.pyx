@@ -279,7 +279,8 @@ cdef class tempopulsar:
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
-    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True,dofit=True,maxobs=None):
+    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True,fixprefiterrors=True,
+                  dofit=True,maxobs=None):
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -314,7 +315,7 @@ cdef class tempopulsar:
         # create parameter proxies, copy prefit values
 
         self.nobs = self.psr[0].nobs
-        self._readpars(fixangularerror=fixangularerror)
+        self._readpars(fixangularerror=fixangularerror,fixprefiterrors=fixprefiterrors)
         self._readflags()
 
         # save prefit TOAs and residuals
@@ -350,7 +351,7 @@ cdef class tempopulsar:
         readParfile(self.psr,parFile,timFile,self.npsr);   # load the parameters    (all pulsars)
         readTimfile(self.psr,timFile,self.npsr);           # load the arrival times (all pulsars)
 
-    def _readpars(self,fixangularerror=True):
+    def _readpars(self,fixangularerror=True,fixprefiterrors=True):
         cdef parameter *params = self.psr[0].param
 
         # create live proxies for all the parameters
@@ -361,6 +362,9 @@ cdef class tempopulsar:
 
         for ct in range(MAX_PARAMS):
             for subct in range(params[ct].aSize):
+                if fixprefiterrors and not params[ct].fitFlag[subct]:
+                    params[ct].prefitErr[subct] = 0
+
                 newpar = create_tempopar(params[ct],subct)
                 self.pardict[newpar.name] = newpar
                 self.prefit[newpar.name] = prefitpar(newpar.name,
@@ -678,10 +682,11 @@ cdef class tempopulsar:
 
         stdio.sprintf(parFile,"%s",<char *>parfile)
 
-        # pass pointer to pulsars, number of pulsars,
-        # value and flag for global parameter
-        # flag whether to compute residual (usually 0)
-        # flag whether to write a new file
+        # void textOutput(pulsar *psr,int npsr,
+        #                 double globalParameter,  -- ?
+        #                 int nGlobal,             -- ?
+        #                 int outRes,              -- output residuals
+        #                 int newpar, char *fname) -- write new par file
         textOutput(&(self.psr[0]),1,0,0,0,1,parFile)
 
     def savetim(self,timfile):
