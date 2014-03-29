@@ -13,4 +13,6 @@ include libstempo-demo.ipynb
 include libstempo-toasim-demo.ipynb
 include data/B1953+29_NANOGrav_dfg+12.par
 include data/B1953+29_NANOGrav_dfg+12.tim
+include data/J1909-3744_NANOGrav_dfg+12.par 
+include data/J1909-3744_NANOGrav_dfg+12.tim 
 include requirements.txt
