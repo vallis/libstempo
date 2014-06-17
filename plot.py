@@ -2,17 +2,22 @@ import math, types
 import numpy as N
 import matplotlib.pyplot as P
 
-def plotres(psr):
+def plotres(psr,deleted=False):
     """Plot residuals, compute unweighted rms residual."""
-    
-    res = math.sqrt(N.mean(psr.residuals()**2)) / 1e-6
 
-    t = psr.toas(); i = N.argsort(t)
+    res, t, errs = psr.residuals(), psr.toas(), psr.toaerrs
     
-    P.errorbar(t[i],psr.residuals()[i]/1e-6,yerr=psr.toaerrs[i],fmt='x')
+    if (not deleted) and N.any(psr.deleted):
+        res, t, errs = res[~psr.deleted], t[~psr.deleted], errs[~psr.deleted]
+        print "Plotting {0}/{1} nondeleted points.".format(len(res),psr.nobs)
+
+    meanres = math.sqrt(N.mean(res**2)) / 1e-6
+    i = N.argsort(t)
+
+    P.errorbar(t[i],res[i]/1e-6,yerr=errs[i],fmt='x')
     
     P.xlabel('MJD'); P.ylabel('res [us]')
-    P.title("{0} - rms res = {1:.2f} us".format(psr.name,res))
+    P.title("{0} - rms res = {1:.2f} us".format(psr.name,meanres))
 
 # select parameters by name or number, omit non-existing
 def _select(p,pars,select):

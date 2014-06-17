@@ -50,7 +50,26 @@ def _quantize(times,dt=1):
     
     return t, U
 
-def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,marginalize=True,redcomponents=10):
+class Mask(object):
+    def __init__(self,psr,usedeleted):
+        self.usedeleted = usedeleted
+
+        if self.usedeleted is False:
+            self.deleted = psr.deleted
+
+            if not N.any(self.deleted):
+                self.usedeleted = True
+
+    def __call__(self,array):
+        if self.usedeleted is True:
+            return array
+        else:
+            if array.ndim == 2:
+                return array[~self.deleted,:]
+            else:
+                return array[~self.deleted]
+
+def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,marginalize=True,normalize=True,redcomponents=10,usedeleted=True):
     """Returns the Gaussian-process likelihood for 'pulsar'.
 
     The likelihood is evaluated at the current value of the pulsar parameters,
@@ -66,7 +85,9 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
     parameters in pulsar.fitpars, using an M-matrix formulation.
     """
 
-    err = 1.0e-6 * pulsar.toaerrs
+    mask = Mask(pulsar,usedeleted)    
+
+    err = 1.0e-6 * mask(pulsar.toaerrs)
     Cdiag = (efac*err)**2
 
     if equad:
@@ -74,11 +95,12 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
 
     if Ared:
         redf, F = _setuprednoise(pulsar,redcomponents)
+        F = mask(F)
         phi = Ared**2 * redf**(-gammared)
 
     if jitter:
         # quantize at 1 second; U plays the role of redF
-        t, U = _quantize(86400.0 * pulsar.toas(),1.0)
+        t, U = _quantize(86400.0 * mask(pulsar.toas()),1.0)
         phi_j = (1e-6*jitter)**2 * N.ones(U.shape[1])
 
         # stack the basis arrays if we're also doing red noise
@@ -100,8 +122,8 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
         logCdet = N.sum(N.log(Cdiag))
 
     if marginalize:
-        M = pulsar.designmatrix()
-        res = N.array(pulsar.residuals(updatebats=False),'d')
+        M = mask(pulsar.designmatrix())
+        res = mask(N.array(pulsar.residuals(updatebats=False),'d'))
         
         CinvM = N.dot(Cinv,M)
         A = dot(M.T,CinvM)
@@ -109,12 +131,17 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
         invA = N.linalg.inv(A)
         CinvMres = dot(res,CinvM)
 
-        ret = (- 0.5 * dot(res,Cinv,res) + 0.5 * dot(CinvMres,invA,CinvMres.T) - 0.5 * logCdet - 0.5 * N.linalg.slogdet(A)[1]
-               - 0.5 * (M.shape[0] - M.shape[1]) * math.log(2.0*math.pi))
-    else:
-        res = N.array(pulsar.residuals(),'d')
+        ret = -0.5 * dot(res,Cinv,res) + 0.5 * dot(CinvMres,invA,CinvMres.T) 
 
-        ret = (- 0.5 * dot(res,Cinv,res) - 0.5 * logCdet - 0.5 * len(res) * math.log(2.0*math.pi))
+        if normalize:
+            ret = ret - 0.5 * logCdet - 0.5 * N.linalg.slogdet(A)[1] - 0.5 * (M.shape[0] - M.shape[1]) * math.log(2.0*math.pi)
+    else:
+        res = mask(N.array(pulsar.residuals(),'d'))
+
+        ret = -0.5 * dot(res,Cinv,res)
+
+        if normalize:
+            ret = ret - 0.5 * logCdet - 0.5 * len(res) * math.log(2.0*math.pi)
 
     return ret
 

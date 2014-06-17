@@ -8,7 +8,6 @@ include like.py
 include multinest.py
 include plot.py
 include toasim.py
-include Makefile
 include libstempo-demo.ipynb
 include libstempo-toasim-demo.ipynb
 include data/B1953+29_NANOGrav_dfg+12.par
