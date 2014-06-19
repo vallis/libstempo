@@ -39,14 +39,18 @@ if tempo2 is None:
         tempo2 = found[0]
         print "Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2)
     else:
+        # tempo2 won't be there, but at least it should exist as a directory
+        tempo2 = '/usr'
         print """
-Sorry, but I need you to point me to the tempo2 install root
-(e.g., /usr/local if tempo2.h is in /usr/local/include), using --with-tempo2=...
+I have not been able to autodetect the location of the tempo2 headers and
+libraries. Nevertheless, I will proceed with the installation. If you get
+errors, please run setup.py again, but use the option --with-tempo2=...
+to point me to the tempo2 install root (e.g., /usr/local if tempo2.h is
+in /usr/local/include).
 """
-        sys.exit(1)
 
 setup(name = 'libstempo',
-      version = '1.2.9',
+      version = '1.2.10',
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
