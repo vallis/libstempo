@@ -50,7 +50,7 @@ in /usr/local/include).
 """
 
 setup(name = 'libstempo',
-      version = '1.2.10',
+      version = '1.3.0',
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
@@ -58,12 +58,13 @@ setup(name = 'libstempo',
       url = 'https://github.com/vallis/mc3pta',
 
       packages = ['libstempo'],
-      package_dir = {'libstempo': '.'},
+      package_dir = {'libstempo': 'libstempo'},
       package_data = {'libstempo': ['data/*']},
 
       py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee','libstempo.plot','libstempo.toasim'],
 
-      ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo.pyx'],language="c++",
+      ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
+                                        language="c++",
                                         include_dirs = [tempo2 + '/include',numpy.get_include()],
                                         libraries = ['tempo2'],
                                         library_dirs = [tempo2 + '/lib']))
