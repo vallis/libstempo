@@ -71,6 +71,7 @@ cdef extern from "tempo2.h":
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
+        int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -170,10 +171,15 @@ cdef class tempopar:
 # since the __init__ for extension classes must have a Python signature,
 # we use a factory function to initialize its attributes to pure-C objects
 
-cdef create_tempopar(parameter par,int subct):
+map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELAT'}
+
+cdef create_tempopar(parameter par,int subct,int eclCoord):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
     newpar.name = str(par.shortlabel[subct])
+
+    if newpar.name in ['RAJ','DECJ','PMRA','PMDEC'] and eclCoord == 1:
+        newpar.name = map_coords[newpar.name]
 
     newpar._isjump = 0
 
@@ -365,7 +371,7 @@ cdef class tempopulsar:
                 if fixprefiterrors and not params[ct].fitFlag[subct]:
                     params[ct].prefitErr[subct] = 0
 
-                newpar = create_tempopar(params[ct],subct)
+                newpar = create_tempopar(params[ct],subct,self.psr[0].eclCoord)
                 self.pardict[newpar.name] = newpar
                 self.prefit[newpar.name] = prefitpar(newpar.name,
                                                      numpy.longdouble(params[ct].prefit[subct]),
