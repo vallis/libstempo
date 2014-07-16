@@ -302,9 +302,10 @@ cdef class tempopulsar:
 
         # read par and tim file
 
-        timfile = rewritetim(timfile)
+        # tim rewriting is not needed with newer tempo2, which follows relative paths
+        # timfile = rewritetim(timfile)
         self._readfiles(parfile,timfile)
-        os.unlink(timfile)
+        # os.unlink(timfile)
 
         # set tempo2 flags
 
@@ -694,6 +695,10 @@ cdef class tempopulsar:
         #                 int outRes,              -- output residuals
         #                 int newpar, char *fname) -- write new par file
         textOutput(&(self.psr[0]),1,0,0,0,1,parFile)
+
+        # newer tempo2 does not honor parFile name, and uses
+        # the pulsar name + '-new.par' instead
+        os.rename(self.psr[0].name + '-new.par',parfile)
 
     def savetim(self,timfile):
         cdef char timFile[MAX_FILELEN]
