@@ -36,13 +36,14 @@
         <ul>
             <li>Python 2.7 (no Python 3 yet...)</li>
             <li><a href="http://www.numpy.org/">numpy</a></li>
-            <li><a href="http://www.atnf.csiro.au/research/pulsar/tempo2/">tempo2</a>, of course (version 2013.9.1 or greater)</li>
+            <li><a href="http://www.atnf.csiro.au/research/pulsar/tempo2/">tempo2</a>, of course (current version 2013.9.1)</li>
         </ul>
 
         <h3>Installation</h3>
         <ul>
             <li>You can install the latest release with <code>pip install libstempo</code>. That's all you need. Sweet, huh?</li>        
-            <li>Otherwise, grab the git repository and do <code>python setup.py install --prefix=...</code>. The installer will look in likely places for the <code>tempo2</code> headers and libraries, but you can also give it the tempo2 installation directory (the directory that contains <code>include/tempo2.h</code> and <code>lib/libtempo2.a</code>) using <code>--with-tempo2=...</code>.
+            <li>Otherwise, grab the git repository and do <code>python setup.py install --prefix=...</code>. The installer will look in likely places for the <code>tempo2</code> headers and libraries, but you can also give it the tempo2 installation directory (the directory that contains <code>include/tempo2.h</code> and <code>lib/libtempo2.a</code>) using <code>--with-tempo2=...</code>.</li>
+            <li>If you are compiling <code>tempo2</code> from the latest CVS instead of the release, you should get the <code>tempo2-cvs</code> branch of <code>libstempo</code>: <code>git clone https://github.com/vallis/libstempo.git -b tempo2-cvs</code>. Since <code>tempo2</code> is changing continuously, I cannot guarantee results with this approach.</li> 
         </ul>
 
         <h3>Tutorials</h3>
