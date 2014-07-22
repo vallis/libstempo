@@ -210,7 +210,7 @@ def add_dm(psr,A,gamma,components=10,seed=None):
     prior = norm * f**(-gamma)
     
     y = N.sqrt(prior) * N.random.randn(size)
-    psr.stoas[:] += (1.0/day) * N.dot(F,y)
+    psr.stoas[:] += (1.0/day) * v * N.dot(F,y)
     
 def add_line(psr,f,A,offset=0.5):
     """Add a line of frequency `f` [Hz] and amplitude `A` [s],
