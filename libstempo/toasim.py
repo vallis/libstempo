@@ -6,6 +6,7 @@ from libstempo import GWB
 
 day = 24 * 3600
 year = 365.25 * day
+DMk = 4.15e3           # Units MHz^2 cm^3 pc sec
 
 def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True):
     """Add a stochastic background from inspiraling binaries, using the tempo2
@@ -160,6 +161,37 @@ def add_rednoise(psr,A,gamma,components=10,seed=None):
         N.random.seed(seed)
     
     t = psr.toas()
+    minx, maxx = N.min(t), N.max(t)
+    x = (t - minx) / (maxx - minx)
+    T = (day/year) * (maxx - minx)
+
+    size = 2*components
+    F = N.zeros((psr.nobs,size),'d')
+    f = N.zeros(size,'d')
+
+    for i in range(components):
+        F[:,2*i]   = N.cos(2*math.pi*(i+1)*x)
+        F[:,2*i+1] = N.sin(2*math.pi*(i+1)*x)
+
+        f[2*i] = f[2*i+1] = (i+1) / T
+
+    norm = A**2 * year**2 / (12 * math.pi**2 * T)
+    prior = norm * f**(-gamma)
+    
+    y = N.sqrt(prior) * N.random.randn(size)
+    psr.stoas[:] += (1.0/day) * N.dot(F,y)
+
+def add_dm(psr,A,gamma,components=10,seed=None):
+    """Add DM variations with P(f) = A^2 / (12 pi^2) (f year)^-gamma,
+    using `components` Fourier bases.
+    Optionally take a pseudorandom-number-generator seed."""
+
+    if seed is not None:
+        N.random.seed(seed)
+    
+    t = psr.toas()
+    v = DMk / psr.freqs**2
+
     minx, maxx = N.min(t), N.max(t)
     x = (t - minx) / (maxx - minx)
     T = (day/year) * (maxx - minx)
