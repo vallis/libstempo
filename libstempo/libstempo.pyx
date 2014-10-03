@@ -572,6 +572,13 @@ cdef class tempopulsar:
 
             return numpy.asarray(_freqs)
 
+    property freqsSSB:
+        def __get__(self):
+            cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freqSSB)
+            _freqs.strides[0] = sizeof(observation)
+
+            return numpy.asarray(_freqs)
+
     # residuals in seconds
     def residuals(self,updatebats=True,formresiduals=True):
         """Return a long-double numpy array of residuals (a private copy).
