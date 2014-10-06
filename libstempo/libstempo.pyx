@@ -13,9 +13,13 @@ cimport numpy
 
 cdef extern from "GWsim-stub.h":
     ctypedef struct gwSrc:
-        pass 
+        long double theta_g
+        long double phi_g
+        long double omega_g
+        long double phi_polar_g
 
     void GWbackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double fhi,double gwAmp,double alpha,int loglin)
+    void GWdipolebackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double fhi, double gwAmp,double alpha,int loglin, double *dipoleamps)
     void setupGW(gwSrc *gw)
     void setupPulsar_GWsim(long double ra_p,long double dec_p,long double *kp)
     long double calculateResidualGW(long double *kp,gwSrc *gw,long double obstime,long double dist)
@@ -221,9 +225,13 @@ cdef class GWB:
     cdef gwSrc *gw
     cdef int ngw
 
-    def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True):
+    def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True, \
+                    dipoleamps=None, dipoledir=None, dipolemag=None):
         self.gw = <gwSrc *>stdlib.malloc(sizeof(gwSrc)*ngw)
         self.ngw = ngw
+
+        cdef int is_dipole = False
+        cdef int is_anis = False
 
         if seed is None:
             seed = -int(time.time())
@@ -231,7 +239,30 @@ cdef class GWB:
         gwAmp = gwAmp * (86400.0*365.25)**alpha
 
         cdef long idum = seed
-        GWbackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0)
+        cdef numpy.ndarray[double,ndim=1] dipamps = numpy.zeros(3,numpy.double)
+
+        if dipoleamps is not None:
+            dipoleamps = numpy.array(dipoleamps/(4.0*numpy.pi))
+            if numpy.sum(dipoleamps**2) > 1.0:
+                raise ValueError("Full dipole amplitude > 1. Change the amplitudes")
+
+            dipamps[:] = dipoleamps[:]
+            is_dipole = True
+
+        if dipoledir is not None and dipolemag is not None:
+            dipolemag/=4.0*numpy.pi
+            dipamps[0]=numpy.cos(dipoledir[1])*dipolemag
+            dipamps[1]=numpy.sin(dipoledir[1])*numpy.cos(dipoledir[0])*dipolemag
+            dipamps[2]=numpy.sin(dipoledir[1])*numpy.sin(dipoledir[0])*dipolemag
+
+            is_dipole = True
+
+
+        if is_dipole:
+            dipamps = numpy.ascontiguousarray(dipamps, dtype=numpy.double)
+            GWdipolebackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0, &dipamps[0])
+        else:
+            GWbackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0)
 
         for i in range(ngw):
           setupGW(&self.gw[i])
@@ -264,6 +295,20 @@ cdef class GWB:
         res[:] = res[:] - numpy.mean(res)
         
         pulsar.stoas[:] += res[:] / 86400.0
+
+    def gw_dist(self):
+        theta = numpy.zeros(self.ngw)
+        phi = numpy.zeros(self.ngw)
+        omega = numpy.zeros(self.ngw)
+        polarization = numpy.zeros(self.ngw)
+
+        for i in range(self.ngw):
+            theta[i] = self.gw[i].theta_g
+            phi[i] = self.gw[i].phi_g
+            omega[i] = self.gw[i].omega_g
+            polarization[i] = self.gw[i].phi_polar_g
+
+        return theta, phi, omega, polarization
 
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
