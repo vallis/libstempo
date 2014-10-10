@@ -230,8 +230,8 @@ cdef class GWB:
         self.gw = <gwSrc *>stdlib.malloc(sizeof(gwSrc)*ngw)
         self.ngw = ngw
 
-        cdef int is_dipole = False
-        cdef int is_anis = False
+        is_dipole = False
+        is_anis = False
 
         if seed is None:
             seed = -int(time.time())
@@ -256,7 +256,6 @@ cdef class GWB:
             dipamps[2]=numpy.sin(dipoledir[1])*numpy.sin(dipoledir[0])*dipolemag
 
             is_dipole = True
-
 
         if is_dipole:
             dipamps = numpy.ascontiguousarray(dipamps, dtype=numpy.double)

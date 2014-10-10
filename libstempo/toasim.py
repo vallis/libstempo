@@ -23,11 +23,16 @@ def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
 
     then call the method gwb.add_gwb(pulsar[i],dist) repeatedly to get a
-    consistent background for multiple pulsars."""
+    consistent background for multiple pulsars.
+
+    Returns the GWB object
+    """
     
 
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
     gwb.add_gwb(psr,dist)
+
+    return gwb
 
 def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20, alpha=-0.66, \
         logspacing=True, dipoleamps=None, dipoledir=None, dipolemag=None):
@@ -57,13 +62,13 @@ def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-2
     then call the method gwb.add_gwb(pulsar[i],dist) repeatedly to get a
     consistent background for multiple pulsars.
     
-    Returns the distribution of sources as: theta, phi, omega, polarization
+    Returns the GWB object
     """
 
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing,dipoleamps,dipoledir,dipolemag)
     gwb.add_gwb(psr,dist)
     
-    return gwb.gw_dist()
+    return gwb
 
 def _geti(x,i):
     return x[i] if isinstance(x,(tuple,list,N.ndarray)) else x
