@@ -63,6 +63,10 @@ cdef extern from "tempo2.h":
         double freq            # frequency of observation (in MHz)
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
         char telID[100]        # telescope ID
+        double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
+
+    ctypedef struct observatory:
+        double height_grs80     # GRS80 geodetic height
 
     ctypedef struct pulsar:
         parameter param[MAX_PARAMS]
@@ -78,6 +82,7 @@ cdef extern from "tempo2.h":
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
         int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
+        double posPulsar[3]     # 3-unitvector pointing at the pulsar
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -100,6 +105,8 @@ cdef extern from "tempo2.h":
 
     void textOutput(pulsar *psr,int npsr,double globalParameter,int nGlobal,int outRes,int newpar,char *fname)
     void writeTim(char *timname,pulsar *psr,char *fileFormat)
+
+    observatory *getObservatory(char *code)
 
 cdef class tempopar:
     cdef public object name
@@ -696,6 +703,32 @@ cdef class tempopulsar:
                 ret[:,i] /= dev[i]
 
         return ret
+
+    def elevation(self):
+        """Return the elevation of the pulsar at the time of the observations
+        """
+        cdef double [:] _posP = <double [:3]>self.psr[0].posPulsar
+        cdef double [:] _zenith = <double [:3]>self.psr[0].obsn[0].zenith
+
+        _posP.strides[0] = sizeof(double)
+        posP = numpy.asarray(_posP)
+
+        _zenith.strides[0] = sizeof(double)
+        zenith = numpy.asarray(_zenith)
+
+        elev = numpy.zeros(self.nobs)
+        tels = self.telescope
+
+        # TODO: make more Pythonic?
+        for ii in range(self.nobs):
+            obs = getObservatory(tels[ii])
+
+            _zenith = <double [:3]>self.psr[0].obsn[ii].zenith
+            zenith = numpy.asarray(_zenith)
+            elev[ii] = numpy.arcsin(numpy.dot(zenith, posP) / obs.height_grs80) * 180.0 / numpy.pi
+
+        return elev
+
 
     # run tempo2 fit
     # TO DO: see if the parameter-number mismatch is a problem
