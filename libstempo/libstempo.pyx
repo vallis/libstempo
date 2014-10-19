@@ -563,6 +563,9 @@ cdef class tempopulsar:
         def __get__(self):
             return self.psr[0].binaryModel
 
+        def __set__(self, value):
+            stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>value)
+
     # number of active fit parameters
     property ndim:
         def __get__(self):
