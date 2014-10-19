@@ -62,6 +62,7 @@ cdef extern from "tempo2.h":
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
         char telID[100]        # telescope ID
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
+        long double torb       # Combined binary delay
 
     ctypedef struct observatory:
         double height_grs80     # GRS80 geodetic height
@@ -645,6 +646,16 @@ cdef class tempopulsar:
             formResiduals(self.psr,self.npsr,1)     # 1 to remove the mean
 
         return numpy.asarray(_res).copy()
+
+    def binarydelay(self):
+        """Return a long-double numpy array of the delay (a private copy)
+        introduced by the binary model. Does not re-form the residuals
+        """
+        # TODO: Is it not much faster to call DDmodel/XXmodel directly?
+        cdef long double [:] _torb = <long double [:self.nobs]>&(self.psr[0].obsn[0].torb)
+        _torb.strides[0] = sizeof(observation)
+
+        return numpy.asarray(_torb).copy()
 
     def designmatrix(self,updatebats=True,fixunits=False):
         """Return the design matrix [nobs x (ndim+1)] for the current
