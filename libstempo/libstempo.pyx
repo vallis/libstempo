@@ -623,12 +623,13 @@ cdef class tempopulsar:
 
             return numpy.asarray(_freqs)
 
-    property freqsSSB:
+    # barycentric frequencies in MHz (numpy.double array, makes a copy at each call)
+    property ssbfreqs:
         def __get__(self):
             cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freqSSB)
             _freqs.strides[0] = sizeof(observation)
 
-            return numpy.asarray(_freqs)
+            return numpy.asarray(_freqs) / 1e6
 
     # residuals in seconds
     def residuals(self,updatebats=True,formresiduals=True):
