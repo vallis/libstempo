@@ -12,6 +12,8 @@ import numpy
 cimport numpy
 
 cdef extern from "GWsim-stub.h":
+    cdef bint HAVE_GWSIM
+
     ctypedef struct gwSrc:
         long double theta_g
         long double phi_g
@@ -100,7 +102,7 @@ cdef extern from "tempo2.h":
     void doFit(pulsar *psr,int npsr,int writeModel)
     void updateParameters(pulsar *psr,int p,double val[],double error[])
 
-    # for tempo2 versions older than, change to
+    # for tempo2 versions older than ..., change to
     # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos)
     void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos,int ipsr)
 
@@ -139,6 +141,7 @@ cdef class tempopar:
             else:
                 (<double*>self._val)[0] = value
                 (<double*>self._err)[0] = 0
+
     property err:
         def __get__(self):
             if not self._isjump:
@@ -154,9 +157,10 @@ cdef class tempopar:
     property fit:
         def __get__(self):
             return True if self._fitFlag[0] else False
+
         def __set__(self,value):
             if value:
-                if not self._paramSet[0]:
+                if not self._isjump and not self._paramSet[0]:
                     self._paramSet[0] = 1
 
                 self._fitFlag[0] = 1
@@ -170,12 +174,15 @@ cdef class tempopar:
                 return True if self._paramSet[0] else False
             else:
                 return True
+
         def __set__(self,value):
             if not self._isjump:
                 if value:
                     self._paramSet[0] = 1
                 else:
                     self._paramSet[0] = 0
+            elif not value:
+                raise ValueError("JUMP parameters declared in the par file cannot be unset in tempo2.")
 
     def __str__(self):
         # TO DO: proper precision handling
@@ -271,6 +278,8 @@ cdef class GWB:
 
         if is_dipole:
             dipamps = numpy.ascontiguousarray(dipamps, dtype=numpy.double)
+            if not HAVE_GWSIM:
+                raise NotImplementedError("libstempo was compiled against an older tempo2 that does not implement GWdipolebackground.")
             GWdipolebackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0, &dipamps[0])
         else:
             GWbackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0)
@@ -631,12 +640,13 @@ cdef class tempopulsar:
 
             return numpy.asarray(_freqs)
 
-    property freqsSSB:
+    # barycentric frequencies in MHz (numpy.double array, makes a copy at each call)
+    property ssbfreqs:
         def __get__(self):
             cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freqSSB)
             _freqs.strides[0] = sizeof(observation)
 
-            return numpy.asarray(_freqs)
+            return numpy.asarray(_freqs) / 1e6
 
     # residuals in seconds
     def residuals(self,updatebats=True,formresiduals=True):
