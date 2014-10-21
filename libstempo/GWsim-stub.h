@@ -2,9 +2,12 @@
 
 #ifdef HAVE_GWSIM_H
 
+#define HAVE_GWSIM 1
 #include "GWsim.h"
 
 #else
+
+#define HAVE_GWSIM 0
 
 typedef struct gwSrc {
     long double theta_g;
@@ -33,5 +36,9 @@ void setupPulsar_GWsim(long double ra_p,long double dec_p,long double *kp);
 
 /* Define the dummy anisotropic functions here */
 #warning "Anisotropic GWsim routines not available"
+
+void GWdipolebackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double fhi, double gwAmp,double alpha,int loglin, double *dipoleamps) {
+    return;
+}
 
 #endif /* HAVE_GWSIM_H */
