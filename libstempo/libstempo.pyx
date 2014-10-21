@@ -82,6 +82,10 @@ cdef extern from "tempo2.h":
         char *binaryModel
         int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
         double posPulsar[3]     # 3-unitvector pointing at the pulsar
+        #long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
+        int phaseJumpID[MAX_JUMPS]        # ID of closest point to phase jump
+        int phaseJumpDIR[MAX_JUMPS]       # Size and direction of phase jump
+        int nPhaseJump                    # Number of phase jumps
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
