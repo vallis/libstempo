@@ -12,10 +12,16 @@ import numpy
 cimport numpy
 
 cdef extern from "GWsim-stub.h":
+    cdef bint HAVE_GWSIM
+
     ctypedef struct gwSrc:
-        pass 
+        long double theta_g
+        long double phi_g
+        long double omega_g
+        long double phi_polar_g
 
     void GWbackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double fhi,double gwAmp,double alpha,int loglin)
+    void GWdipolebackground(gwSrc *gw,int numberGW,long *idum,long double flo,long double fhi, double gwAmp,double alpha,int loglin, double *dipoleamps)
     void setupGW(gwSrc *gw)
     void setupPulsar_GWsim(long double ra_p,long double dec_p,long double *kp)
     long double calculateResidualGW(long double *kp,gwSrc *gw,long double obstime,long double dist)
@@ -91,7 +97,7 @@ cdef extern from "tempo2.h":
     void doFit(pulsar *psr,int npsr,int writeModel)
     void updateParameters(pulsar *psr,int p,double val[],double error[])
 
-    # for tempo2 versions older than, change to
+    # for tempo2 versions older than ..., change to
     # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos)
     void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos,int ipsr)
 
@@ -130,6 +136,7 @@ cdef class tempopar:
             else:
                 (<double*>self._val)[0] = value
                 (<double*>self._err)[0] = 0
+
     property err:
         def __get__(self):
             if not self._isjump:
@@ -145,9 +152,10 @@ cdef class tempopar:
     property fit:
         def __get__(self):
             return True if self._fitFlag[0] else False
+
         def __set__(self,value):
             if value:
-                if not self._paramSet[0]:
+                if not self._isjump and not self._paramSet[0]:
                     self._paramSet[0] = 1
 
                 self._fitFlag[0] = 1
@@ -161,12 +169,15 @@ cdef class tempopar:
                 return True if self._paramSet[0] else False
             else:
                 return True
+
         def __set__(self,value):
             if not self._isjump:
                 if value:
                     self._paramSet[0] = 1
                 else:
                     self._paramSet[0] = 0
+            elif not value:
+                raise ValueError("JUMP parameters declared in the par file cannot be unset in tempo2.")
 
     def __str__(self):
         # TO DO: proper precision handling
@@ -228,9 +239,13 @@ cdef class GWB:
     cdef gwSrc *gw
     cdef int ngw
 
-    def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True):
+    def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True, \
+                    dipoleamps=None, dipoledir=None, dipolemag=None):
         self.gw = <gwSrc *>stdlib.malloc(sizeof(gwSrc)*ngw)
         self.ngw = ngw
+
+        is_dipole = False
+        is_anis = False
 
         if seed is None:
             seed = -int(time.time())
@@ -238,7 +253,31 @@ cdef class GWB:
         gwAmp = gwAmp * (86400.0*365.25)**alpha
 
         cdef long idum = seed
-        GWbackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0)
+        cdef numpy.ndarray[double,ndim=1] dipamps = numpy.zeros(3,numpy.double)
+
+        if dipoleamps is not None:
+            dipoleamps = numpy.array(dipoleamps/(4.0*numpy.pi))
+            if numpy.sum(dipoleamps**2) > 1.0:
+                raise ValueError("Full dipole amplitude > 1. Change the amplitudes")
+
+            dipamps[:] = dipoleamps[:]
+            is_dipole = True
+
+        if dipoledir is not None and dipolemag is not None:
+            dipolemag/=4.0*numpy.pi
+            dipamps[0]=numpy.cos(dipoledir[1])*dipolemag
+            dipamps[1]=numpy.sin(dipoledir[1])*numpy.cos(dipoledir[0])*dipolemag
+            dipamps[2]=numpy.sin(dipoledir[1])*numpy.sin(dipoledir[0])*dipolemag
+
+            is_dipole = True
+
+        if is_dipole:
+            dipamps = numpy.ascontiguousarray(dipamps, dtype=numpy.double)
+            if not HAVE_GWSIM:
+                raise NotImplementedError("libstempo was compiled against an older tempo2 that does not implement GWdipolebackground.")
+            GWdipolebackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0, &dipamps[0])
+        else:
+            GWbackground(self.gw,ngw,&idum,flow,fhigh,gwAmp,alpha,1 if logspacing else 0)
 
         for i in range(ngw):
           setupGW(&self.gw[i])
@@ -271,6 +310,20 @@ cdef class GWB:
         res[:] = res[:] - numpy.mean(res)
         
         pulsar.stoas[:] += res[:] / 86400.0
+
+    def gw_dist(self):
+        theta = numpy.zeros(self.ngw)
+        phi = numpy.zeros(self.ngw)
+        omega = numpy.zeros(self.ngw)
+        polarization = numpy.zeros(self.ngw)
+
+        for i in range(self.ngw):
+            theta[i] = self.gw[i].theta_g
+            phi[i] = self.gw[i].phi_g
+            omega[i] = self.gw[i].omega_g
+            polarization[i] = self.gw[i].phi_polar_g
+
+        return theta, phi, omega, polarization
 
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
@@ -578,12 +631,13 @@ cdef class tempopulsar:
 
             return numpy.asarray(_freqs)
 
-    property freqsSSB:
+    # barycentric frequencies in MHz (numpy.double array, makes a copy at each call)
+    property ssbfreqs:
         def __get__(self):
             cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freqSSB)
             _freqs.strides[0] = sizeof(observation)
 
-            return numpy.asarray(_freqs)
+            return numpy.asarray(_freqs) / 1e6
 
     # residuals in seconds
     def residuals(self,updatebats=True,formresiduals=True):

@@ -6,7 +6,10 @@ import numpy as N
 from numpy.ctypeslib import as_array
 
 # don't bother with parsing error
-lib = cdll.LoadLibrary('libnest3.so')
+try:
+    lib = cdll.LoadLibrary('libnest3.so')
+except:
+    lib = cdll.LoadLibrary(os.path.dirname(__file__) + '/libnest3.so')
 
 # if we want to do OS X version detection:
 # import platform

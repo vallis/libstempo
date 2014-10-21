@@ -281,3 +281,26 @@ def plothist2(data,pars=[],offsets=[],smooth=False,colormap=True,select=[],range
 
     # if save:
     #     P.savefig('figs/{0}-{1}-2.png'.format(psr,flms[0]))
+
+
+def plotgwsrc(gwb):
+    """
+    Plot a GWB source population as a mollweide projection.
+    """
+    theta, phi, omega, polarization = gwb.gw_dist()
+
+    rho = phi-N.pi
+    eta = 0.5*N.pi - theta
+
+    # I don't know how to get rid of the RuntimeWarning -- RvH, Oct 10, 2014:
+    #     /Users/vhaaster/env/dev/lib/python2.7/site-packages/matplotlib/projections/geo.py:485:
+    #     RuntimeWarning: invalid value encountered in arcsin theta = np.arcsin(y / np.sqrt(2))
+    #old_settings = N.seterr(invalid='ignore')
+
+    P.title("GWB source population")
+    ax = P.axes(projection='mollweide')
+
+    foo = P.scatter(rho, eta, marker='.', s=1)
+    #bar = N.seterr(**old_settings)
+
+    return foo
