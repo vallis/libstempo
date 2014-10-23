@@ -756,7 +756,8 @@ cdef class tempopulsar:
         tempo2 definition of a phasejump is such that it is applied when
         observation_SAT > phasejump_SAT
         """
-        npj = self.psr[0].nPhaseJump
+        npj = max(self.psr[0].nPhaseJump, 1)
+
         cdef int [:] _phaseJumpID = <int [:npj]>self.psr[0].phaseJumpID
         cdef int [:] _phaseJumpDir = <int [:npj]>self.psr[0].phaseJumpDir
 
@@ -768,7 +769,9 @@ cdef class tempopulsar:
 
         phaseJumpMJD = self.stoas[phaseJumpID]
 
-        return zip(phaseJumpMJD, phaseJumpDir)
+        npj = self.psr[0].nPhaseJump
+        return zip(phaseJumpMJD[:npj], phaseJumpDir[:npj])
+
 
     def add_phasejump(self, mjd, phasejump):
         """ Add a phase jump at time mjd of phase phasejump
