@@ -86,7 +86,7 @@ cdef extern from "tempo2.h":
         double posPulsar[3]     # 3-unitvector pointing at the pulsar
         #long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
         int phaseJumpID[MAX_JUMPS]        # ID of closest point to phase jump
-        int phaseJumpDIR[MAX_JUMPS]       # Size and direction of phase jump
+        int phaseJumpDir[MAX_JUMPS]       # Size and direction of phase jump
         int nPhaseJump                    # Number of phase jumps
 
     void initialise(pulsar *psr, int noWarnings)
@@ -747,6 +747,78 @@ cdef class tempopulsar:
             elev[ii] = numpy.arcsin(numpy.dot(zenith, posP) / obs.height_grs80) * 180.0 / numpy.pi
 
         return elev
+
+    def phasejumps(self):
+        """ Return an array of phase-jump tuples: (MJD, phase). These are
+        copies.
+
+        NOTE: As in tempo2, we refer the phase-jumps to site arrival times. The
+        tempo2 definition of a phasejump is such that it is applied when
+        observation_SAT > phasejump_SAT
+        """
+        npj = self.psr[0].nPhaseJump
+        cdef int [:] _phaseJumpID = <int [:npj]>self.psr[0].phaseJumpID
+        cdef int [:] _phaseJumpDir = <int [:npj]>self.psr[0].phaseJumpDir
+
+        _phaseJumpID.strides[0] = sizeof(int)
+        _phaseJumpDir.strides[0] = sizeof(int)
+
+        phaseJumpID = numpy.asarray(_phaseJumpID)
+        phaseJumpDir = numpy.asarray(_phaseJumpDir)
+
+        phaseJumpMJD = self.stoas[phaseJumpID]
+
+        return zip(phaseJumpMJD, phaseJumpDir)
+
+    def add_phasejump(self, mjd, phasejump):
+        """ Add a phase jump at time mjd of phase phasejump
+
+        NOTE: due to the comparison observation_SAT > phasejump_SAT in Tempo2,
+        the exact MJD itself where the jump was added is not affected.
+        """
+        npj = self.psr[0].nPhaseJump
+
+        # TODO: If we are at the maximum number of phase jumps, it should be
+        # possible to remove a phase jump, or add to an existing one.
+        # TODO: Do we remove the phase jump if it gets set to 0?
+        if npj+1 > MAX_JUMPS:
+            raise ValueError("Maximum number of phase jumps reached!")
+
+        if self.nobs < 2:
+            raise ValueError("Too few observations to allow phase jumps")
+
+        cdef int [:] _phaseJumpID = <int [:npj+1]>self.psr[0].phaseJumpID
+        cdef int [:] _phaseJumpDir = <int [:npj+1]>self.psr[0].phaseJumpDir
+
+        _phaseJumpID.strides[0] = sizeof(int)
+        _phaseJumpDir.strides[0] = sizeof(int)
+
+        phaseJumpID = numpy.asarray(_phaseJumpID)
+        phaseJumpDir = numpy.asarray(_phaseJumpDir)
+
+        if numpy.all(mjd < self.stoas) or numpy.all(mjd > self.stoas):
+            raise ValueError("Cannot add a phase jump outside the dataset")
+
+        # Figure out to which observation we need to attach the phase jump
+        fullind = numpy.arange(self.nobs)[self.stoas <= mjd]
+        pjid = fullind[numpy.argmax(self.stoas[self.stoas <= mjd])]
+
+        if pjid in phaseJumpID[:npj]:
+            # This MJD already has a phasejump. Add to that jump
+            jindex = numpy.where(phaseJumpID == pjid)[0][0]
+            phaseJumpDir[jindex] += int(phasejump)
+        else:
+            # Add a new phase jump
+            self.psr[0].nPhaseJump += 1
+
+            phaseJumpID[-1] = pjid
+            phaseJumpDir[-1] = int(phasejump)
+
+    property nphasejumps:
+        def __get__(self):
+            """ Return the number of phase jumps
+            """
+            return self.psr[0].nPhaseJump
 
 
     # run tempo2 fit
