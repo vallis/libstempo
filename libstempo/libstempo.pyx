@@ -1,4 +1,5 @@
 import os, math, re, time
+from distutils.version import StrictVersion
 
 try:
     from collections import OrderedDict
@@ -35,6 +36,8 @@ cdef extern from "tempo2.h":
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
+
+    cdef char *TEMPO2_VERSION "TEMPO2_h_VER"
 
     int MAX_PSR, MAX_OBSN
 
@@ -328,6 +331,9 @@ cdef class GWB:
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
 
+def tempo2version():
+    return StrictVersion(TEMPO2_VERSION.split()[1])
+
 cdef class tempopulsar:
     cpdef object parfile
     cpdef object timfile
@@ -362,10 +368,14 @@ cdef class tempopulsar:
 
         # read par and tim file
 
-        # tim rewriting is not needed with newer tempo2, which follows relative paths
-        # timfile = rewritetim(timfile)
-        self._readfiles(parfile,timfile)
-        # os.unlink(timfile)
+        # tim rewriting is not needed with tempo2/readTimfile.C >= 1.22 (date: 2014/06/12 02:25:54),
+        # which follows relative paths; closest tempo2.h version is 1.90 (date: 2014/06/24 20:03:34)
+        if tempo2version() >= StrictVersion("1.90"):
+            self._readfiles(parfile,timfile)
+        else:
+            timfile = rewritetim(timfile)
+            self._readfiles(parfile,timfile)
+            os.unlink(timfile)
 
         # set tempo2 flags
 
@@ -790,9 +800,10 @@ cdef class tempopulsar:
         #                 int newpar, char *fname) -- write new par file
         textOutput(&(self.psr[0]),1,0,0,0,1,parFile)
 
-        # newer tempo2 does not honor parFile name, and uses
-        # the pulsar name + '-new.par' instead
-        os.rename(self.psr[0].name + '-new.par',parfile)
+        # tempo2/textOutput.C newer than revision 1.60 (2014/06/27 17:14:44) [~1.92 for tempo2.h]
+        # does not honor parFile name, and uses pulsar_name + '-new.par' instead
+        if tempo2version() >= StrictVersion("1.92"):
+            os.rename(self.psr[0].name + '-new.par',parfile)
 
     def savetim(self,timfile):
         cdef char timFile[MAX_FILELEN]
