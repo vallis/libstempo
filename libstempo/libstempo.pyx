@@ -817,6 +817,11 @@ cdef class tempopulsar:
             phaseJumpID[-1] = pjid
             phaseJumpDir[-1] = int(phasejump)
 
+    def remove_phasejumps(self):
+        """ Remove all phase jumps
+        """
+        self.psr[0].nPhaseJump = 0
+
     property nphasejumps:
         def __get__(self):
             """ Return the number of phase jumps
