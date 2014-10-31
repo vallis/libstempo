@@ -1,3 +1,16 @@
+# strategy for python 3
+# for returns, converting char to str (which is a different thing in py2 and py3) should be OK
+#              not sure about the numpy arrays though
+# for input:
+# define a global name for whatever char type is used in the module
+# ctypedef unsigned char char_type
+#
+# cdef char_type[:] _chars(s):
+#     if isinstance(s, unicode):
+#         # encode to the specific encoding used inside of the module
+#         s = (<unicode>s).encode('utf8')
+#     return s
+
 import os, math, re, time
 from distutils.version import StrictVersion
 
@@ -801,9 +814,10 @@ cdef class tempopulsar:
         textOutput(&(self.psr[0]),1,0,0,0,1,parFile)
 
         # tempo2/textOutput.C newer than revision 1.60 (2014/06/27 17:14:44) [~1.92 for tempo2.h]
-        # does not honor parFile name, and uses pulsar_name + '-new.par' instead
-        if tempo2version() >= StrictVersion("1.92"):
-            os.rename(self.psr[0].name + '-new.par',parfile)
+        # does not honor parFile name, and uses pulsar_name + '-new.par' instead;
+        # this was fixed in 1.61...
+        # if tempo2version() >= StrictVersion("1.92"):
+        #     os.rename(self.psr[0].name + '-new.par',parfile)
 
     def savetim(self,timfile):
         cdef char timFile[MAX_FILELEN]
