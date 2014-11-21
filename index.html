@@ -41,8 +41,10 @@
 
         <h3>Installation</h3>
         <ul>
-            <li>You can install the latest release with <code>pip install libstempo</code>. That's all you need. Sweet, huh?</li>        
-            <li>Otherwise, grab the git repository and do <code>python setup.py install --prefix=...</code>. The installer will look in likely places for the <code>tempo2</code> headers and libraries, but you can also give it the tempo2 installation directory (the directory that contains <code>include/tempo2.h</code> and <code>lib/libtempo2.a</code>) using <code>--with-tempo2=...</code>.</li>
+            <li>You can install the latest release with <code>pip install libstempo</code>. That's all you need. Sweet, huh?</li>
+            <li>If you have problems, it's probably because libstempo cannot find the tempo2 C headers and library. The installer will look in likely places, but you can also give it the tempo2 installation directory (i.e., the directory that contains <code>include/tempo2.h</code> and <code>lib/libtempo2.a</code>) by writing <code>pip install libstempo --install-option="--with-tempo2=..."</code>.</li>
+            <li>Otherwise, grab the git repository and do <code>python setup.py install --prefix=...</code>, to install where you prefer. Again you can use <code>--with-tempo2=...</code> to point the installer to the tempo2 install location.</li>
+            <li>If <code>import libstempo</code> fails at runtime, complaining that it cannot find <code>libtempo2.so</code>, you need to set the environment variable <code>LD_LIBRARY_PATH</code> to the directory that contains <code>libtempo2.so</code>.</li>
             <li>Since 2014/10/23, the <code>master</code> branch supports both the latest <code>tempo2</code> release, and the latest CVS. (Or at least the changes that the maintainers are aware of. Open a ticket if you find a problem.)</li> 
         </ul>
 
