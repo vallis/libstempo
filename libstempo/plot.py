@@ -2,7 +2,7 @@ import math, types
 import numpy as N
 import matplotlib.pyplot as P
 
-def plotres(psr,deleted=False):
+def plotres(psr,deleted=False,group=None):
     """Plot residuals, compute unweighted rms residual."""
 
     res, t, errs = psr.residuals(), psr.toas(), psr.toaerrs
@@ -12,10 +12,26 @@ def plotres(psr,deleted=False):
         print "Plotting {0}/{1} nondeleted points.".format(len(res),psr.nobs)
 
     meanres = math.sqrt(N.mean(res**2)) / 1e-6
-    i = N.argsort(t)
-
-    P.errorbar(t[i],res[i]/1e-6,yerr=errs[i],fmt='x')
     
+    if group is None:
+        i = N.argsort(t)
+        P.errorbar(t[i],res[i]/1e-6,yerr=errs[i],fmt='x')
+    else:
+        if (not deleted) and N.any(psr.deleted):
+            flagmask = psr.flags[group][~psr.deleted]
+        else:
+            flagmask = psr.flags[group]
+
+        unique = list(set(flagmask))
+            
+        for flagval in unique:
+            f = (flagmask == flagval)
+            flagres, flagt, flagerrs = res[f], t[f], errs[f]
+            i = N.argsort(flagt)
+            P.errorbar(flagt[i],flagres[i]/1e-6,yerr=flagerrs[i],fmt='x')
+        
+        P.legend(unique,numpoints=1,bbox_to_anchor=(1.1,1.1))
+
     P.xlabel('MJD'); P.ylabel('res [us]')
     P.title("{0} - rms res = {1:.2f} us".format(psr.name,meanres))
 
