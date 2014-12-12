@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import sys, os
 
 from distutils.core import setup
@@ -24,7 +26,8 @@ if tempo2 is None:
     try:
         import subprocess
         stdout = subprocess.check_output('which tempo2',shell=True)
-        t2exec = [stdout[:-12]]     # remove /bin/tempo2
+        t2exec = [str(stdout[:-12])]     # remove /bin/tempo2
+                                         # note that subprocess.STDOUT yields bytes in Python 3
     except:
         t2exec = []
 
@@ -37,25 +40,25 @@ if tempo2 is None:
 
     if found:
         tempo2 = found[0]
-        print "Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2)
+        print("Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2))
     else:
         # tempo2 won't be there, but at least it should exist as a directory
         tempo2 = '/usr'
-        print """
+        print("""
 I have not been able to autodetect the location of the tempo2 headers and
 libraries. Nevertheless, I will proceed with the installation. If you get
 errors, please run setup.py again, but use the option --with-tempo2=...
 to point me to the tempo2 install root (e.g., /usr/local if tempo2.h is
 in /usr/local/include).
-"""
+""")
 
 setup(name = 'libstempo',
-      version = '2.0.1',
+      version = '2.0.1', # remember to change it in __init__.py
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
       author_email = 'vallis@vallis.org',
-      url = 'https://github.com/vallis/mc3pta',
+      url = 'https://github.com/vallis/libstempo',
 
       packages = ['libstempo'],
       package_dir = {'libstempo': 'libstempo'},

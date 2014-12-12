@@ -242,7 +242,7 @@ map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELA
 cdef create_tempopar(parameter par,int subct,int eclCoord):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
-    newpar.name = str(par.shortlabel[subct])
+    newpar.name = par.shortlabel[subct].decode('ascii')
 
     if newpar.name in ['RAJ','DECJ','PMRA','PMDEC'] and eclCoord == 1:
         newpar.name = map_coords[newpar.name]
@@ -366,7 +366,7 @@ cdef class GWB:
 # but all attributes must be defined in the code
 
 def tempo2version():
-    return StrictVersion(TEMPO2_VERSION.split()[1])
+    return StrictVersion(str(TEMPO2_VERSION).split()[1])
 
 cdef class tempopulsar:
     cpdef object parfile
@@ -453,7 +453,7 @@ cdef class tempopulsar:
         self.timfile = timfile
 
         if not os.path.isfile(parfile):
-            raise IOError, "Cannot find parfile {0}.".format(parfile)
+            raise IOError("Cannot find parfile {0}.".format(parfile))
 
         if not os.path.isfile(timfile):
             # hail Mary pass
@@ -461,10 +461,16 @@ cdef class tempopulsar:
             if os.path.isfile(maybe):
                 timfile = maybe
             else:
-                raise IOError, "Cannot find timfile {0}.".format(timfile)
+                raise IOError("Cannot find timfile {0}.".format(timfile))
 
-        stdio.sprintf(parFile[0],"%s",<char *>parfile)
-        stdio.sprintf(timFile[0],"%s",<char *>timfile)
+        parfile_bytes, timfile_bytes = parfile.encode('ascii'), timfile.encode('ascii')
+
+        for checkfile in [parfile_bytes,timfile_bytes]:
+            if len(checkfile) > MAX_FILELEN - 1:
+                raise IOError("Filename {0} is too long for tempo2.".format(checkfile))
+
+        stdio.sprintf(parFile[0],"%s",<char *>parfile_bytes)
+        stdio.sprintf(timFile[0],"%s",<char *>timfile_bytes)
 
         readParfile(self.psr,parFile,timFile,self.npsr)   # load the parameters    (all pulsars)
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
@@ -495,7 +501,10 @@ cdef class tempopulsar:
         #     nPol += pPsr->nWhite*2-1;
 
     # --- flags
-    #     TO DO: better interface, support writing...
+    #     TO DO: proper flag interface
+    #            flags() returns the list of defined flags
+    #            flagvals(flagname,...) gets or sets arrays of values
+    #            a possibility is also an obs interface
     def _readflags(self):
         cdef int i, j
 
@@ -505,13 +514,15 @@ cdef class tempopulsar:
         for i in range(self.nobs):
             for j in range(self.psr[0].obsn[i].nFlags):
                 flag = self.psr[0].obsn[i].flagID[j][1:]
+                flag = flag.decode('ascii')
 
                 if flag not in self.flagnames:
                     self.flagnames.append(flag)
                     # the maximum flag-value length is hard-set in tempo2.h
-                    self.flags[flag] = numpy.zeros(self.nobs,dtype='a' + str(MAX_FLAG_LEN))
+                    self.flags[flag] = numpy.zeros(self.nobs,dtype='U' + str(MAX_FLAG_LEN))
 
-                self.flags[flag][i] = self.psr[0].obsn[i].flagVal[j]
+                flagvalue = self.psr[0].obsn[i].flagVal[j]
+                self.flags[flag][i] = flagvalue.decode('ascii')
 
         for flag in self.flags:
             self.flags[flag].flags.writeable = False
@@ -522,11 +533,13 @@ cdef class tempopulsar:
         """Get or set pulsar name."""
 
         def __get__(self):
-            return self.psr[0].name
+            return self.psr[0].name.decode('ascii')
 
         def __set__(self,value):
-            if len(value) < 100:
-                stdio.sprintf(self.psr[0].name,"%s",<char *>value)
+            name_bytes = value.encode('ascii')
+
+            if len(name_bytes) < 100:
+                stdio.sprintf(self.psr[0].name,"%s",<char *>name_bytes)
             else:
                 raise ValueError
 
@@ -536,11 +549,13 @@ cdef class tempopulsar:
         """Get or set pulsar binary model."""
 
         def __get__(self):
-            return self.psr[0].binaryModel
+            return self.psr[0].binaryModel.decode('ascii')
 
         def __set__(self,value):
-            if len(value) < 100:
-                stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>value)
+            model_bytes = value.encode('ascii')
+
+            if len(model_bytes) < 100:    
+                stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>model_bytes)
             else:
                 raise ValueError
 
@@ -1004,7 +1019,12 @@ cdef class tempopulsar:
         if not parfile:
             parfile = self.parfile
 
-        stdio.sprintf(parFile,"%s",<char *>parfile)
+        parfile_bytes = parfile.encode('ascii')
+
+        if len(parfile_bytes) > MAX_FILELEN - 1:
+            raise IOError("Parfile name {0} too long for tempo2!".format(parfile))
+
+        stdio.sprintf(parFile,"%s",<char *>parfile_bytes)
 
         # void textOutput(pulsar *psr,int npsr,
         #                 double globalParameter,  -- ?
@@ -1031,7 +1051,12 @@ cdef class tempopulsar:
         if not timfile:
             timfile = self.timfile
 
-        stdio.sprintf(timFile,"%s",<char *>timfile)
+        timfile_bytes = timfile.encode('ascii')
+
+        if len(timfile_bytes) > MAX_FILELEN - 1:
+            raise IOError("Timfile name {0} too long for tempo2!".format(timfile))
+
+        stdio.sprintf(timFile,"%s",<char *>timfile_bytes)
 
         writeTim(timFile,&(self.psr[0]),'tempo2');
 

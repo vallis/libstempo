@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import math, types
 import numpy as N
 import matplotlib.pyplot as P
@@ -9,7 +11,7 @@ def plotres(psr,deleted=False,group=None):
     
     if (not deleted) and N.any(psr.deleted):
         res, t, errs = res[~psr.deleted], t[~psr.deleted], errs[~psr.deleted]
-        print "Plotting {0}/{1} nondeleted points.".format(len(res),psr.nobs)
+        print("Plotting {0}/{1} nondeleted points.".format(len(res),psr.nobs))
 
     meanres = math.sqrt(N.mean(res**2)) / 1e-6
     
