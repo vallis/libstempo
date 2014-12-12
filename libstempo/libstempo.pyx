@@ -14,10 +14,18 @@
 import os, math, re, time
 from distutils.version import StrictVersion
 
+import collections
+
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
+
+# get zip-as-iterator behavior in Python 2
+try:
+    import itertools.izip as zip
+except ImportError:
+    pass
 
 from libc cimport stdlib, stdio
 from cython cimport view
@@ -46,6 +54,7 @@ cdef extern from "tempo2.h":
     enum: MAX_OBSN_VAL
     enum: MAX_PARAMS
     enum: MAX_JUMPS
+    enum: MAX_FLAG_LEN
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
@@ -104,6 +113,7 @@ cdef extern from "tempo2.h":
         int phaseJumpID[MAX_JUMPS]        # ID of closest point to phase jump
         int phaseJumpDir[MAX_JUMPS]       # Size and direction of phase jump
         int nPhaseJump                    # Number of phase jumps
+        double rmsPost
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -220,9 +230,9 @@ cdef class tempopar:
 
     def __str__(self):
         if self.set:
-            return '%s (%s): %s +/- %s' % (self.name,'fitted' if self.fit else 'not fitted',repr(self.val),repr(self.err))
+            return 'tempo2 parameter %s (%s): %s +/- %s' % (self.name,'fitted' if self.fit else 'not fitted',repr(self.val),repr(self.err))
         else:
-            return '%s (unset)'
+            return 'tempo2 parameter %s (unset)'
 
 # since the __init__ for extension classes must have a Python signature,
 # we use a factory function to initialize its attributes to pure-C objects
@@ -260,24 +270,14 @@ cdef create_tempojump(pulsar *psr,int ct):
 
     return newpar
 
-class prefitpar(object):
-    def __init__(self,name,val,err):
-        self.__dict__['name'] = name
-        self.__dict__['val']  = val
-        self.__dict__['err']  = err
 
-    def __setattr__(self,par,val):
-        raise TypeError, "Cannot write to prefit parameters."
-
-    def __str__(self):
-        return '%s: %s +/- %s' % (self.name,repr(self.val),repr(self.err))
-
+# TODO: check if consistent with new API 
 cdef class GWB:
     cdef gwSrc *gw
     cdef int ngw
 
     def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True, \
-                    dipoleamps=None, dipoledir=None, dipolemag=None):
+                    dipoleamps=None,dipoledir=None,dipolemag=None):
         self.gw = <gwSrc *>stdlib.malloc(sizeof(gwSrc)*ngw)
         self.ngw = ngw
 
@@ -376,17 +376,20 @@ cdef class tempopulsar:
     cdef pulsar *psr        # array of pulsar structures
 
     cpdef object pardict    # dictionary of parameter proxies
-    cpdef public object prefit     # dictionary of pre-fit parameters
-    cpdef public int nobs   # number of observations (public)
-    cpdef public object allflags    # a list of all flags that have values
+
+    cpdef int nobs_         # number of observations
+
+    # TO DO: move all or some of these to functions?
+    cpdef public object flagnames   # a list of all flags that have values
     cpdef public object flags       # a dictionary of numpy arrays with flag values
-    cpdef public double fitchisq
+    cpdef public double fitchisq    # chisq after tempo2 fit
+    cpdef public double fitrms      # rms residuals after tempo2 fit
 
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
-    def __cinit__(self,parfile,timfile=None,warnings=False,fixangularerror=True,fixprefiterrors=True,
-                  dofit=True,maxobs=None):
+    def __cinit__(self,parfile,timfile=None,warnings=False,fixprefiterrors=True,
+                  dofit=False,maxobs=None):
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -423,16 +426,11 @@ cdef class tempopulsar:
         preProcess(self.psr,self.npsr,0,NULL)
         formBatsAll(self.psr,self.npsr)
 
-        # create parameter proxies, copy prefit values
+        # create parameter proxies
 
-        self.nobs = self.psr[0].nobs
-        self._readpars(fixangularerror=fixangularerror,fixprefiterrors=fixprefiterrors)
+        self.nobs_ = self.psr[0].nobs
+        self._readpars(fixprefiterrors=fixprefiterrors)
         self._readflags()
-
-        # save prefit TOAs and residuals
-
-        self.prefit.toas = self.toas()
-        self.prefit.residuals = self.residuals(updatebats=False)
 
         # do a fit if requested
         if dofit:
@@ -443,7 +441,8 @@ cdef class tempopulsar:
             destroyOne(&(self.psr[i]))
             stdlib.free(&(self.psr[i]))
 
-    def _readfiles(self,parfile,timfile):
+    # TODO: PYTHON3!
+    def _readfiles(self,parfile,timfile=None):
         cdef char parFile[MAX_PSR_VAL][MAX_FILELEN]
         cdef char timFile[MAX_PSR_VAL][MAX_FILELEN]
 
@@ -453,23 +452,29 @@ cdef class tempopulsar:
         self.parfile = parfile
         self.timfile = timfile
 
-        if not os.path.isfile(parfile) or not os.path.isfile(timfile):
-            raise IOError, "Cannot find parfile (%s) or timfile (%s)!" % (parfile,timfile)
+        if not os.path.isfile(parfile):
+            raise IOError, "Cannot find parfile {0}.".format(parfile)
 
-        stdio.sprintf(parFile[0],"%s",<char *>parfile);
-        stdio.sprintf(timFile[0],"%s",<char *>timfile);
+        if not os.path.isfile(timfile):
+            # hail Mary pass
+            maybe = '../tim/{0}'.format(timfile)
+            if os.path.isfile(maybe):
+                timfile = maybe
+            else:
+                raise IOError, "Cannot find timfile {0}.".format(timfile)
 
-        readParfile(self.psr,parFile,timFile,self.npsr);   # load the parameters    (all pulsars)
-        readTimfile(self.psr,timFile,self.npsr);           # load the arrival times (all pulsars)
+        stdio.sprintf(parFile[0],"%s",<char *>parfile)
+        stdio.sprintf(timFile[0],"%s",<char *>timfile)
 
-    def _readpars(self,fixangularerror=True,fixprefiterrors=True):
+        readParfile(self.psr,parFile,timFile,self.npsr)   # load the parameters    (all pulsars)
+        readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
+
+    def _readpars(self,fixprefiterrors=True):
         cdef parameter *params = self.psr[0].param
 
         # create live proxies for all the parameters
-        # and collect the prefit values of the parameters
 
         self.pardict = OrderedDict()
-        self.prefit = OrderedDict()
 
         for ct in range(MAX_PARAMS):
             for subct in range(params[ct].aSize):
@@ -477,178 +482,171 @@ cdef class tempopulsar:
                     params[ct].prefitErr[subct] = 0
 
                 newpar = create_tempopar(params[ct],subct,self.psr[0].eclCoord)
+                newpar.err = params[ct].prefitErr[subct]
                 self.pardict[newpar.name] = newpar
-                self.prefit[newpar.name] = prefitpar(newpar.name,
-                                                     get_longdouble_as_scalar(params[ct].prefit[subct]),
-                                                     get_longdouble_as_scalar(params[ct].prefitErr[subct]))
 
         for ct in range(1,self.psr[0].nJumps+1):  # jump 1 in the array not used...
             newpar = create_tempojump(&self.psr[0],ct)
             self.pardict[newpar.name] = newpar
-            self.prefit[newpar.name] = prefitpar(newpar.name,
-                                                 self.psr[0].jumpVal[ct],
-                                                 self.psr[0].jumpValErr[ct])
-
-        # TODO: it should also not be possible to replace or alter prefit,
-        #       or to replace prefit.vals and prefit.errs
-
-        self.prefit.vals = numpy.fromiter((get_longdouble_as_scalar(self.prefit[par].val)
-                                           for par in self.pars),numpy.longdouble)
-        self.prefit.vals.flags.writeable = False
-
-        self.prefit.errs = numpy.fromiter((get_longdouble_as_scalar(self.prefit[par].err)
-                                           for par in self.pars),numpy.longdouble)
-        self.prefit.errs.flags.writeable = False
 
         # the designmatrix plugin also adds extra parameters for sinusoidal whitening
         # but they don't seem to be used in the EPTA analysis
         # if(pPsr->param[param_wave_om].fitFlag[0]==1)
         #     nPol += pPsr->nWhite*2-1;
 
+    # --- flags
+    #     TO DO: better interface, support writing...
     def _readflags(self):
         cdef int i, j
 
-        # TO DO: make these attributes read only
-        self.allflags = []
+        self.flagnames = []
         self.flags = dict()
 
         for i in range(self.nobs):
             for j in range(self.psr[0].obsn[i].nFlags):
                 flag = self.psr[0].obsn[i].flagID[j][1:]
 
-                if flag not in self.allflags:
-                    self.allflags.append(flag)
+                if flag not in self.flagnames:
+                    self.flagnames.append(flag)
                     # the maximum flag-value length is hard-set in tempo2.h
-                    self.flags[flag] = numpy.zeros(self.nobs,dtype='a32')
+                    self.flags[flag] = numpy.zeros(self.nobs,dtype='a' + str(MAX_FLAG_LEN))
 
                 self.flags[flag][i] = self.psr[0].obsn[i].flagVal[j]
 
-    # TO DO: possibly set the name?
+        for flag in self.flags:
+            self.flags[flag].flags.writeable = False
+
+    # --- pulsar name
+    #     PYTHON3: string?
     property name:
+        """Get or set pulsar name."""
+
         def __get__(self):
             return self.psr[0].name
+
+        def __set__(self,value):
+            if len(value) < 100:
+                stdio.sprintf(self.psr[0].name,"%s",<char *>value)
+            else:
+                raise ValueError
+
+    # --- pulsar binary model
+    #     PYTHON3: string?
+    property binarymodel:
+        """Get or set pulsar binary model."""
+
+        def __get__(self):
+            return self.psr[0].binaryModel
+
+        def __set__(self,value):
+            if len(value) < 100:
+                stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>value)
+            else:
+                raise ValueError
+
+    excludepars = ['START','FINISH']
+
+    # --- list parameters
+    #     TODO: better way to exclude non-fit parameters
+    def pars(self,which='fit'):
+        """tempopulsar.pars(which='fit')
+
+        Return tuple of parameter names:
+
+        - if `which` is 'fit' (default), fitted parameters;
+        - if `which` is 'set', all parameters with a defined value;
+        - if `which` is 'all', all parameters."""
+
+        if which == 'fit':
+            return tuple(key for key in self.pardict if self.pardict[key].fit and key not in self.excludepars)
+        elif which == 'set':
+            return tuple(key for key in self.pardict if self.pardict[key].set)
+        elif which == 'all':
+            return tuple(self.pardict)
+        elif isinstance(which,collections.Iterable):
+            # to support vals() with which=sequence
+            return which
+        else:
+            raise KeyError
+
+    # --- number of observations
+    property nobs:
+        """Returns number of observations."""
+        def __get__(self):
+            return self.nobs_
+
+    # --- number of fit parameters
+    #     CHECK: inconsistent interface since ndim can change?
+    property ndim:
+        """Returns number of fit parameters."""
+        def __get__(self):
+            return sum(self.pardict[par].fit for par in self.pardict if par not in self.excludepars)
+
+    # --- dictionary access to parameters
+    #     TODO: possibly implement the full (nonmutable) dict interface by way of collections.Mapping
+    def __contains__(self,key):
+        return key in self.pardict
 
     def __getitem__(self,key):
         return self.pardict[key]
 
-    def __contains__(self,key):
-        return key in self.pardict
+    # --- bulk access to parameter values
+    def vals(self,values=None,which='fit'):
+        """tempopulsar.vals(values=None,which='fit')
 
-    property pars:
-        """Returns tuple of names of parameters that are fitted (deprecated, use fitpars)."""
-        def __get__(self):
-            return self.fitpars
+        Get (if no `values` provided) or set the parameter values, depending on `which`:
 
-    property fitpars:
-        """Returns tuple of names of parameters that are fitted."""
-        def __get__(self):
-            return tuple(key for key in self.pardict if self.pardict[key].fit and key not in ['START','FINISH'])
+        - if `which` is 'fit' (default), fitted parameters;
+        - if `which` is 'set', all parameters with a defined value;
+        - if `which` is 'all', all parameters;
+        - if `which` is a sequence, all parameters listed there.
 
-    property setpars:
-        """Returns tuple of names of parameters that have been set."""
-        def __get__(self):
-            return tuple(key for key in self.pardict if self.pardict[key].set)
+        Parameter values are returned as a numpy longdouble array.
 
-    property allpars:
-        """Returns tuple of names of all tempo2 parameters (whether set or unset, fit or not fit)."""
-        def __get__(self):
-            return tuple(self.pardict)
+        Values to be set can be passed as a numpy array, sequence (in which case they
+        are taken to correspond to parameters in the order given by `pars(which=which)`),
+        or dict (in which case which will be ignored).
 
-    property vals:
-        """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that are fitted (deprecated, use fitvals)."""
-        def __get__(self):
-            return self.fitvals
+        Notes:
 
-        def __set__(self,values):
-            self.fitvals = values
+        - Passing values as anything else than numpy longdoubles may result in loss of precision. 
+        - Not all parameters in the selection need to be set.
+        - Setting an unset parameter sets its `set` flag (obviously).
+        - Unlike in earlier libstempo versions, setting a parameter does not set its error to zero."""
+        
+        if values is None:
+            return numpy.fromiter((self.pardict[par].val for par in self.pars(which)),numpy.longdouble)
+        elif isinstance(values,collections.Mapping):
+            for par in values:
+                self.pardict[par].val = values[par]
+        elif isinstance(values,collections.Iterable):
+            for par,val in zip(self.pars(which),values):
+                self.pardict[par].val = val
+        else:
+            raise TypeError
 
-    property errs:
-        """Returns a numpy longdouble vector of errors of all parameters that are fitted."""
-        def __get__(self):
-            return self.fiterrs
+    def errs(self,values=None,which='fit'):
+        """tempopulsar.errs(values=None,which='fit')
 
-    property fitvals:
-        """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that are fitted."""
-        def __get__(self):
-            ret = numpy.fromiter((self.pardict[par].val for par in self.fitpars),numpy.longdouble)
-            ret.flags.writeable = False
-            return ret
+        Same as `vals()`, but for parameter errors."""
 
-        def __set__(self,values):
-            for par,value in zip(self.fitpars,values):
-                self.pardict[par].val = value
-                # self.pardict[par].err = 0
+        if values is None:
+            return numpy.fromiter((self.pardict[par].err for par in self.pars(which)),numpy.longdouble)
+        elif isinstance(values,collections.Mapping):
+            for par in values:
+                self.pardict[par].err = values[par]
+        elif isinstance(values,collections.Iterable):
+            for par,val in zip(self.pars(which),values):
+                self.pardict[par].err = val
+        else:
+            raise TypeError
 
-    property fiterrs:
-        """Returns a numpy longdouble vector of errors of all parameters that are fitted."""
-        def __get__(self):
-            ret = numpy.fromiter((self.pardict[par].err for par in self.fitpars),numpy.longdouble)
-            ret.flags.writeable = False
-            return ret
-
-        def __set__(self,values):
-            for par,value in zip(self.fitpars,values):
-                self.pardict[par].err = value
-
-    property setvals:
-        """Returns (or sets from a sequence) a numpy longdouble vector of values of all parameters that have been set."""
-        def __get__(self):
-            ret = numpy.fromiter((self.pardict[par].val for par in self.setpars),numpy.longdouble)
-            ret.flags.writeable = False
-            return ret
-
-        def __set__(self,values):
-            for par,value in zip(self.setpars,values):
-                self.pardict[par].val = value
-                # self.pardict[par].err = 0
-
-    property seterrs:
-        """Returns a numpy longdouble vector of errors of all parameters that have been set."""
-        def __get__(self):
-            ret = numpy.fromiter((self.pardict[par].err for par in self.setpars),numpy.longdouble)
-            ret.flags.writeable = False
-            return ret
-
-    # the best way to access prefit pars would be through the same interface:
-    # psr.prefit['parname'].val, psr.prefit['parname'].err, perhaps even psr.prefit.cols
-    # since the prefit values don't change, it's OK for psr.prefit to be a static attribute
-
-    property binarymodel:
-        def __get__(self):
-            return self.psr[0].binaryModel
-
-        def __set__(self, value):
-            stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>value)
-
-    # number of active fit parameters
-    property ndim:
-        def __get__(self):
-            return sum(self.pardict[par].fit for par in self.pardict if par not in ['START','FINISH'])
-
-    property deleted:
-        def __get__(self):
-            cdef int [:] _deleted = <int [:self.nobs]>&(self.psr[0].obsn[0].deleted)
-            _deleted.strides[0] = sizeof(observation)
-
-            return (numpy.asarray(_deleted) == 1)
-        def __set__(self,vals):
-            cdef int [:] _deleted = <int [:self.nobs]>&(self.psr[0].obsn[0].deleted)
-            _deleted.strides[0] = sizeof(observation)
-
-            numpy.asarray(_deleted)[:] = vals[:]
-
-    property telescope:
-        def __get__(self):
-            ret = numpy.zeros(self.nobs,dtype='a32')
-            for i in range(self.nobs):
-                ret[i] = self.psr[0].obsn[i].telID
-                if ret[i] in aliases:
-                    ret[i] = aliases[ret[i]]
-
-            return ret
-
-    # TOAs in days (numpy.longdouble array)
     def toas(self):
+        """tempopulsar.toas()
+
+        Return computed SSB TOAs in units of days as a numpy.longdouble array.
+        You get a copy of the current tempo2 array."""
+
         cdef long double [:] _toas = <long double [:self.nobs]>&(self.psr[0].obsn[0].bat)
         _toas.strides[0] = sizeof(observation)
 
@@ -656,17 +654,22 @@ cdef class tempopulsar:
 
         return numpy.asarray(_toas).copy()
 
-    # site arrival times; divide residuals by 86400.0 to subtract
+    # --- data access
+    #     CHECK: proper way of doing docstring?
     property stoas:
+        """Return site arrival times in units of days as a numpy.longdouble array.
+        You get a view of the original tempo2 data structure, which you can write to."""
+
         def __get__(self):
             cdef long double [:] _stoas = <long double [:self.nobs]>&(self.psr[0].obsn[0].sat)
             _stoas.strides[0] = sizeof(observation)
 
             return numpy.asarray(_stoas)
 
-    # return TOA errors in microseconds (numpy.double array)
     property toaerrs:
-        """Returns a (read-only) array of TOA errors in microseconds."""
+        """Returns TOA errors in units of microseconds as a numpy.double array.
+        You get a view of the original tempo2 data structure, which you can write to."""
+
         def __get__(self):
             cdef double [:] _toaerrs = <double [:self.nobs]>&(self.psr[0].obsn[0].toaErr)
             _toaerrs.strides[0] = sizeof(observation)
@@ -675,25 +678,61 @@ cdef class tempopulsar:
 
     # frequencies in MHz (numpy.double array)
     property freqs:
+        """Returns observation frequencies in units of MHz as a numpy.double array.
+        You get a view of the original tempo2 data structure, which you can write to."""
+
         def __get__(self):
             cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freq)
             _freqs.strides[0] = sizeof(observation)
 
             return numpy.asarray(_freqs)
 
-    # barycentric frequencies in MHz (numpy.double array, makes a copy at each call)
-    property ssbfreqs:
+    # --- SSB frequencies
+    #     CHECK: does updateBatsAll update the SSB frequencies?
+    def ssbfreqs(self):
+        """tempopulsar.ssbfreqs()
+
+        Return computed SSB observation frequencies in units of MHz as a numpy.double array.
+        You get a copy of the current values."""
+
+        cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freqSSB)
+        _freqs.strides[0] = sizeof(observation)
+
+        updateBatsAll(self.psr,self.npsr)
+
+        return numpy.asarray(_freqs) / 1e6
+
+    property deleted:
+        """Return deletion status of individual observations (0 = OK, 1 = deleted)
+        as a numpy.int array. You get a view of the original tempo2 data structure,
+        which you can write to. Note that a numpy array of ints cannot be used directly
+        to fancy-index another numpy array; for that, use `array[psr.deleted == 0]`
+        or `array[~deletedmask()]`."""
+
         def __get__(self):
-            cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freqSSB)
-            _freqs.strides[0] = sizeof(observation)
+            cdef int [:] _deleted = <int [:self.nobs]>&(self.psr[0].obsn[0].deleted)
+            _deleted.strides[0] = sizeof(observation)
 
-            return numpy.asarray(_freqs) / 1e6
+            return numpy.asarray(_deleted)
 
-    # residuals in seconds
+    # --- deletion mask
+    #     TO DO: support setting?
+    def deletedmask(self):
+        """tempopulsar.deletedmask()
+
+        Returns a numpy.bool array of the delection station of observations.
+        You get a copy of the current values."""
+
+        return (self.deleted == 1)
+
+    # --- residuals
+    #     TO DO: weighted mean removal
     def residuals(self,updatebats=True,formresiduals=True,removemean=True):
-        """Return a long-double numpy array of residuals (a private copy).
-        Update TOAs and recompute residuals if updatebats = True (default) and
-        formresiduals = True (default), respectively."""
+        """tempopulsar.residuals(updatebats=True,formresiduals=True,removemean=True)
+
+        Returns residuals as a numpy.longdouble array (a copy of current values).
+        Will update TOAs/recompute residuals if `updatebats`/`formresiduals` is True
+        (default for both). Will remove residual mean if `removemean` is True."""
 
         cdef long double [:] _res = <long double [:self.nobs]>&(self.psr[0].obsn[0].residual)
         _res.strides[0] = sizeof(observation)
@@ -705,25 +744,19 @@ cdef class tempopulsar:
 
         return numpy.asarray(_res).copy()
 
-    def binarydelay(self):
-        """Return a long-double numpy array of the delay (a private copy)
-        introduced by the binary model. Does not re-form the residuals."""
-        # TODO: Is it not much faster to call DDmodel/XXmodel directly?
-        cdef long double [:] _torb = <long double [:self.nobs]>&(self.psr[0].obsn[0].torb)
-        _torb.strides[0] = sizeof(observation)
-
-        return numpy.asarray(_torb).copy()
-
     def designmatrix(self,updatebats=True,fixunits=False):
-        """Return the design matrix [nobs x (ndim+1)] for the current
-        fit-parameter values; if fixunits=True, adjust the units
+        """tempopulsar.designmatrix(updatebats=True,fixunits=False)
+
+        Returns the design matrix [nobs x (ndim+1)] as a numpy.longdouble array
+        for current fit-parameter values. If fixunits=True, adjust the units
         of the design-matrix columns so that they match the tempo2
         parameter units."""
 
-        cdef int fit_start  = self['START'].fit
-        cdef int fit_finish = self['FINISH'].fit
-
-        self['START'].fit = self['FINISH'].fit = False
+        # save the fit state of excluded pars
+        excludeparstate = {}
+        for par in self.excludepars:
+            excludeparstate[par] = self[par].fit
+            self[par].fit = False
 
         cdef int i
         cdef numpy.ndarray[double,ndim=2] ret = numpy.zeros((self.nobs,self.ndim+1),'d')
@@ -742,14 +775,16 @@ cdef class tempopulsar:
             # FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i)
             FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i,0)
 
-        self['START'].fit, self['FINISH'].fit = fit_start, fit_finish
+        # restore the fit state of excluded pars
+        for par in self.excludepars:
+            self[par].fit = excludeparstate[par]
 
         cdef numpy.ndarray[double, ndim=1] dev, err
 
         if fixunits:
             dev, err = numpy.zeros(ma,'d'), numpy.ones(ma,'d')
 
-            fp = self.fitpars
+            fp = self.pars()
             save = [self[p].err for p in fp]
 
             updateParameters(&self.psr[0],0,&dev[0],&err[0])
@@ -763,9 +798,41 @@ cdef class tempopulsar:
 
         return ret
 
+    # --- observation telescope
+    #     TO DO: support setting?
+    def telescope(self):
+        """tempopulsar.telescope()
+
+        Returns a numpy character array of the telescope for each observation,
+        mapping tempo2 `telID` values to names by way of the tempo2 runtime file
+        `observatory/aliases`."""
+
+        ret = numpy.zeros(self.nobs,dtype='a32')
+        for i in range(self.nobs):
+            ret[i] = self.psr[0].obsn[i].telID
+            if ret[i] in aliases:
+                ret[i] = aliases[ret[i]]
+
+        return ret
+
+    def binarydelay(self):
+        """tempopulsar.binarydelay()
+
+        Return a long-double numpy array of the delay introduced by the binary model.
+        Does not reform residuals."""
+
+        # TODO: Is it not much faster to call DDmodel/XXmodel directly?
+        cdef long double [:] _torb = <long double [:self.nobs]>&(self.psr[0].obsn[0].torb)
+        _torb.strides[0] = sizeof(observation)
+
+        return numpy.asarray(_torb).copy()
+
     def elevation(self):
-        """Return the elevation of the pulsar at the time of the observations
-        """
+        """tempopulsar.elevation()
+
+        Return a numpy double array of the elevation of the pulsar
+        at the time of the observations."""
+
         cdef double [:] _posP = <double [:3]>self.psr[0].posPulsar
         cdef double [:] _zenith = <double [:3]>self.psr[0].obsn[0].zenith
 
@@ -788,8 +855,12 @@ cdef class tempopulsar:
 
         return elev
 
+    # --- phase jumps: this is Rutger's stuff, he should check the API
+
     def phasejumps(self):
-        """ Return an array of phase-jump tuples: (MJD, phase). These are
+        """tempopulsar.phasejumps()
+
+        Return an array of phase-jump tuples: (MJD, phase). These are
         copies.
 
         NOTE: As in tempo2, we refer the phase-jumps to site arrival times. The
@@ -810,15 +881,18 @@ cdef class tempopulsar:
         phaseJumpMJD = self.stoas[phaseJumpID]
 
         npj = self.psr[0].nPhaseJump
-        return zip(phaseJumpMJD[:npj], phaseJumpDir[:npj])
 
+        return numpy.column_stack((phaseJumpMJD[:npj], phaseJumpDir[:npj]))
 
     def add_phasejump(self, mjd, phasejump):
-        """ Add a phase jump at time mjd of phase phasejump
+        """tempopulsar.add_phasejump(mjd,phasejump)
 
-        NOTE: due to the comparison observation_SAT > phasejump_SAT in Tempo2,
+        Add a phase jump of value `phasejump` at time `mjd`.
+
+        Note: due to the comparison observation_SAT > phasejump_SAT in tempo2,
         the exact MJD itself where the jump was added is not affected.
         """
+
         npj = self.psr[0].nPhaseJump
 
         # TODO: If we are at the maximum number of phase jumps, it should be
@@ -828,7 +902,7 @@ cdef class tempopulsar:
             raise ValueError("Maximum number of phase jumps reached!")
 
         if self.nobs < 2:
-            raise ValueError("Too few observations to allow phase jumps")
+            raise ValueError("Too few observations to allow phase jumps.")
 
         cdef int [:] _phaseJumpID = <int [:npj+1]>self.psr[0].phaseJumpID
         cdef int [:] _phaseJumpDir = <int [:npj+1]>self.psr[0].phaseJumpDir
@@ -840,7 +914,7 @@ cdef class tempopulsar:
         phaseJumpDir = numpy.asarray(_phaseJumpDir)
 
         if numpy.all(mjd < self.stoas) or numpy.all(mjd > self.stoas):
-            raise ValueError("Cannot add a phase jump outside the dataset")
+            raise ValueError("Cannot add a phase jump outside the dataset.")
 
         # Figure out to which observation we need to attach the phase jump
         fullind = numpy.arange(self.nobs)[self.stoas <= mjd]
@@ -858,20 +932,26 @@ cdef class tempopulsar:
             phaseJumpDir[-1] = int(phasejump)
 
     def remove_phasejumps(self):
-        """ Remove all phase jumps
-        """
+        """tempopulsar.remove_phasejumps()
+
+        Remove all phase jumps."""
+
         self.psr[0].nPhaseJump = 0
 
     property nphasejumps:
+        """Return the number of phase jumps."""
+        
         def __get__(self):
-            """ Return the number of phase jumps
-            """
             return self.psr[0].nPhaseJump
 
-
-    # run tempo2 fit
-    # TO DO: see if the parameter-number mismatch is a problem
+    # --- tempo2 fit
+    #     CHECK: does mean removal affect the answer?
     def fit(self,iters=1):
+        """tempopulsar.fit(iters=1)
+
+        Runs `iters` iterations of the tempo2 fit, recomputing
+        barycentric TOAs and residuals each time."""
+
         for i in range(iters):
             updateBatsAll(self.psr,self.npsr)
             formResiduals(self.psr,self.npsr,1)     # 1 to remove the mean
@@ -879,41 +959,46 @@ cdef class tempopulsar:
             doFit(self.psr,self.npsr,0)
 
         self.fitchisq = self.psr[0].fitChisq
+        self.fitrms = self.psr[0].rmsPost
 
+    # --- chisq
+    #     TO DO: subtract weighted mean
     def chisq(self):
+        """tempopulsar.chisq()
+
+        Computes the chisq of current residuals vs errors.
+
+        Note: this is currently different form the tempo2 chisq,
+        since we subtract the mean residual instead of the
+        noise-weighted mean."""
+
         res, err = self.residuals(), self.toaerrs
 
         return numpy.sum(res * res / (1e-12 * err * err))
 
+    # --- rms residual
+    #     TO DO: subtract weighted mean
     def rms(self):
+        """tempopulsar.rms()
+
+        Computes the current residual rms.
+
+        Note: this is currently different from the tempo2 rms,
+        since we subtract the mean residual instead of the
+        noise-weighted mean."""
+
         err = self.toaerrs
         norm = numpy.sum(1.0 / (1e-12 * err * err))
 
         return math.sqrt(self.chisq() / norm)
 
-    # utility function
-    def rd_hms(self):
-        cdef char retstr[256]
-
-        ret = {}
-        for i,par in enumerate(self.parameters):
-            if par[0] in ['RAJ','DECJ']:
-                turn_hms(float(self.params[par[1]].val[par[2]]/(2*math.pi)),<char *>retstr)
-                ret[par[0]] = retstr
-
-        return ret['RAJ'], ret['DECJ']
-
-    # legacy support; abs only
-    def logL(self,dxs=None,abs=False):
-        if dxs is not None:
-            if not abs:
-                raise NotImplementedError, 'pulsar.logL() works only with abs=True'
-
-            self.vals = dxs
-
-        return -0.5 * self.chisq()
-
+    # --- save par file
+    #     PYTHON3: chars?
     def savepar(self,parfile):
+        """tempopulsar.savepar(parfile)
+
+        Save current par file (calls tempo2's `textOutput(...)`)."""
+
         cdef char parFile[MAX_FILELEN]
 
         if not parfile:
@@ -934,7 +1019,13 @@ cdef class tempopulsar:
         # if tempo2version() >= StrictVersion("1.92"):
         #     os.rename(self.psr[0].name + '-new.par',parfile)
 
+    # --- save tim file
+    #     PYTHON3: chars?
     def savetim(self,timfile):
+        """tempopulsar.savetim(timfile)
+
+        Save current par file (calls tempo2's `writeTim(...)`)."""
+
         cdef char timFile[MAX_FILELEN]
 
         if not timfile:
@@ -944,34 +1035,25 @@ cdef class tempopulsar:
 
         writeTim(timFile,&(self.psr[0]),'tempo2');
 
-def findpartim(pulsar,dirname='.',partimfiles=None):
-    # this general setup may be more trouble than it's worth, but I'll leave it
-    # in case it becomes useful in the future
-    sets = {}
-    sets['nanograv_12'] = {'dirname_par': '../nanograv/par',          'dirname_tim': '../nanograv/tim',
-                           'parfile': pulsar + '_NANOGrav_dfg+12.par','timfile': pulsar + '_NANOGrav_dfg+12.tim'}
-    sets['IPTA_13']     = {'dirname_par': '../IPTA/' + pulsar,        'dirname_tim': '../IPTA/' + pulsar,
-                           'parfile': pulsar + '.par',                'timfile': pulsar + '_all.tim'}
 
-    if partimfiles:
-        if partimfiles in sets:
-            parfile = dirname + '/' + sets[partimfiles]['dirname_par'] + '/' + sets[partimfiles]['parfile']
-            timfile = dirname + '/' + sets[partimfiles]['dirname_tim'] + '/' + sets[partimfiles]['timfile']
-        else:
-            parfile = dirname + '/' + partimfiles.split(',')[0]
-            timfile = dirname + '/' + partimfiles.split(',')[1]
-    else:
-        parfile = dirname + '/' + pulsar + '.par'
-        timfile = dirname + '/' + pulsar + '.tim'
+# access tempo2 utility function
+def rad2hms(value):
+    """rad2hms(value)
 
-    if not os.path.isfile(parfile):
-        raise IOError, "[ERROR] libstempo.findpartim: cannot find parfile {0}.".format(parfile)
-    if not os.path.isfile(timfile):
-        raise IOError, "[ERROR] libstempo.findpartim: cannot find timfile {0}.".format(timfile)
+    Use tempo2 `turn_hms` to convert RAJ or DECJ to hours:minutes:seconds."""
 
-    return parfile, timfile
+    cdef char retstr[32]
+
+    turn_hms(float(value/(2*math.pi)),<char *>&retstr)
+
+    return retstr
 
 def rewritetim(timfile):
+    """rewritetim(timfile)
+
+    Rewrite tim file to handle relative includes correctly. Not needed
+    with tempo2 > 1.90."""
+
     import tempfile
     out = tempfile.NamedTemporaryFile(delete=False)
 
@@ -989,9 +1071,14 @@ def rewritetim(timfile):
     return out.name
 
 def purgetim(timfile):
+    """purgetim(timfile)
+
+    Remove 'MODE 1' lines from tim file."""
+
     lines = filter(lambda l: 'MODE 1' not in l,open(timfile,'r').readlines())
     open(timfile,'w').writelines(lines)
 
+# load observatory aliases from tempo2 runtime
 aliases = {}
 if 'TEMPO2' in os.environ:
     for line in open(os.environ['TEMPO2'] + '/observatory/aliases'):
