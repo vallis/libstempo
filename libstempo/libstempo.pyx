@@ -366,9 +366,9 @@ cdef class tempopulsar:
 
     cpdef int nobs_         # number of observations
 
-    # TO DO: move all or some of these to functions?
-    cpdef public object flagnames   # a list of all flags that have values
-    cpdef public object flags       # a dictionary of numpy arrays with flag values
+    cpdef object flagnames_ # a list of all flags that have values
+    cpdef object flags_     # a dictionary of numpy arrays with flag values
+
     cpdef public double fitchisq    # chisq after tempo2 fit
     cpdef public double fitrms      # rms residuals after tempo2 fit
 
@@ -428,7 +428,6 @@ cdef class tempopulsar:
             destroyOne(&(self.psr[i]))
             stdlib.free(&(self.psr[i]))
 
-    # TODO: PYTHON3!
     def _readfiles(self,parfile,timfile=None):
         cdef char parFile[MAX_PSR_VAL][MAX_FILELEN]
         cdef char timFile[MAX_PSR_VAL][MAX_FILELEN]
@@ -495,27 +494,25 @@ cdef class tempopulsar:
     def _readflags(self):
         cdef int i, j
 
-        self.flagnames = []
-        self.flags = dict()
+        self.flagnames_ = []
+        self.flags_ = dict()
 
         for i in range(self.nobs):
             for j in range(self.psr[0].obsn[i].nFlags):
                 flag = self.psr[0].obsn[i].flagID[j][1:]
                 flag = flag.decode('ascii')
 
-                if flag not in self.flagnames:
-                    self.flagnames.append(flag)
+                if flag not in self.flagnames_:
+                    self.flagnames_.append(flag)
                     # the maximum flag-value length is hard-set in tempo2.h
-                    self.flags[flag] = numpy.zeros(self.nobs,dtype='U' + str(MAX_FLAG_LEN))
+                    self.flags_[flag] = numpy.zeros(self.nobs,dtype='U' + str(MAX_FLAG_LEN))
 
                 flagvalue = self.psr[0].obsn[i].flagVal[j]
-                self.flags[flag][i] = flagvalue.decode('ascii')
+                self.flags_[flag][i] = flagvalue.decode('ascii')
 
-        for flag in self.flags:
-            self.flags[flag].flags.writeable = False
+        for flag in self.flags_:
+            self.flags_[flag].flags.writeable = False
 
-    # --- pulsar name
-    #     PYTHON3: string?
     property name:
         """Get or set pulsar name."""
 
@@ -530,8 +527,6 @@ cdef class tempopulsar:
             else:
                 raise ValueError
 
-    # --- pulsar binary model
-    #     PYTHON3: string?
     property binarymodel:
         """Get or set pulsar binary model."""
 
@@ -726,6 +721,22 @@ cdef class tempopulsar:
         You get a copy of the current values."""
 
         return (self.deleted == 1)
+
+    # --- flags
+    def flags(self):
+        """Returns the list of flags defined in this dataset (for at least some observations).""" 
+        
+        return self.flagnames_
+
+    # TO DO: setting flags
+    def flagvals(self,flagname,values=None):
+        """Returns (or sets, if `values` are given) a numpy unicode-string array
+        containing the values of flag `flagname` for every observation."""
+
+        if values is None:
+            return self.flags_[flagname]
+        else:
+            raise NotImplementedError("Flag-setting capabilities are coming soon.")
 
     # --- residuals
     #     TO DO: weighted mean removal
@@ -994,8 +1005,6 @@ cdef class tempopulsar:
 
         return math.sqrt(self.chisq() / norm)
 
-    # --- save par file
-    #     PYTHON3: chars?
     def savepar(self,parfile):
         """tempopulsar.savepar(parfile)
 
@@ -1026,8 +1035,6 @@ cdef class tempopulsar:
         # if tempo2version() >= StrictVersion("1.92"):
         #     os.rename(self.psr[0].name + '-new.par',parfile)
 
-    # --- save tim file
-    #     PYTHON3: chars?
     def savetim(self,timfile):
         """tempopulsar.savetim(timfile)
 
@@ -1091,10 +1098,11 @@ def purgetim(timfile):
     open(timfile,'w').writelines(lines)
 
 # load observatory aliases from tempo2 runtime
-aliases = {}
+aliases, ids = {}, {}
 if 'TEMPO2' in os.environ:
     for line in open(os.environ['TEMPO2'] + '/observatory/aliases'):
         toks = line.split()
 
         if '#' not in line and len(toks) == 2:
             aliases[toks[1]] = toks[0]
+            ids[toks[0]] = toks[1]

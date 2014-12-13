@@ -20,9 +20,9 @@ def plotres(psr,deleted=False,group=None):
         P.errorbar(t[i],res[i]/1e-6,yerr=errs[i],fmt='x')
     else:
         if (not deleted) and N.any(psr.deleted):
-            flagmask = psr.flags[group][~psr.deleted]
+            flagmask = psr.flagvals(group)[~psr.deleted]
         else:
-            flagmask = psr.flags[group]
+            flagmask = psr.flagvals(group)
 
         unique = list(set(flagmask))
             

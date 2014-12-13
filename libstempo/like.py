@@ -525,13 +525,13 @@ class Loglike(object):
                     self.pars.append(par)
 
         if self.multiefac:
-            self.sysflags = list(set(self.psr.flags['sys']))
+            self.sysflags = list(set(self.psr.flagvals('sys')))
             self.sysflags.sort()
 
             longest = str(len(self.sysflags)-1)
             self.efacpars = ['efac{0:0{1}d}'.format(i,len(longest)) for i in range(len(self.sysflags))]
 
-            self.err2 = [(1.0e-6 * (self.psr.flags['sys'] == sys))**2 for sys in self.sysflags]
+            self.err2 = [(1.0e-6 * (self.psr.flagvals('sys') == sys))**2 for sys in self.sysflags]
 
             if N.any([not hasattr(self,efacpar) for efacpar in self.efacpars]):
                 raise KeyError("[ERROR] libstempo.like.Loglike: when multiefac=True, you need to fit (log){0}--{1}.".format(self.efacpars[0],self.efacpars[-1]))
