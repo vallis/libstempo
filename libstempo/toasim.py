@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import math, os
 import numpy as N
 import libstempo
@@ -92,8 +94,8 @@ def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
     import tempfile
     outfile = tempfile.NamedTemporaryFile(delete=False)
 
-    outfile.write('FORMAT 1\n')
-    outfile.write('MODE 1\n')
+    outfile.write(b'FORMAT 1\n')
+    outfile.write(b'MODE 1\n')
 
     obsname = 'fake_' + os.path.basename(parfile)
     if obsname[-4:] == '.par':
@@ -102,7 +104,7 @@ def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
     for i,t in enumerate(obstimes):
         outfile.write('{0} {1} {2} {3} {4} {5}\n'.format(
             obsname,_geti(freq,i),t,_geti(toaerr,i),_geti(observatory,i),_geti(flags,i)
-        ))
+            ).encode('ascii'))
 
     timfile = outfile.name
     outfile.close()

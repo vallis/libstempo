@@ -1,16 +1,3 @@
-# strategy for python 3
-# for returns, converting char to str (which is a different thing in py2 and py3) should be OK
-#              not sure about the numpy arrays though
-# for input:
-# define a global name for whatever char type is used in the module
-# ctypedef unsigned char char_type
-#
-# cdef char_type[:] _chars(s):
-#     if isinstance(s, unicode):
-#         # encode to the specific encoding used inside of the module
-#         s = (<unicode>s).encode('utf8')
-#     return s
-
 import os, math, re, time
 from distutils.version import StrictVersion
 
@@ -1087,11 +1074,11 @@ def rewritetim(timfile):
             m = re.match('([ #]*INCLUDE) *(.*)',line)
             
             if m:
-                out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)))
+                out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)).encode('ascii'))
             else:
-                out.write(line)
+                out.write(line.encode('ascii'))
         else:
-            out.write(line)
+            out.write(line.encode('ascii'))
 
     return out.name
 
