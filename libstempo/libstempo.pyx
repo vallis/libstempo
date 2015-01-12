@@ -690,7 +690,7 @@ cdef class tempopulsar:
             return numpy.asarray(_freqs) / 1e6
 
     # residuals in seconds
-    def residuals(self,updatebats=True,formresiduals=True):
+    def residuals(self,updatebats=True,formresiduals=True,removemean=True):
         """Return a long-double numpy array of residuals (a private copy).
         Update TOAs and recompute residuals if updatebats = True (default) and
         formresiduals = True (default), respectively."""
@@ -701,7 +701,7 @@ cdef class tempopulsar:
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
         if formresiduals:
-            formResiduals(self.psr,self.npsr,1)     # 1 to remove the mean
+            formResiduals(self.psr,self.npsr,1 if removemean else 0)
 
         return numpy.asarray(_res).copy()
 
