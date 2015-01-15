@@ -3,6 +3,9 @@ import math, os
 import numpy as N
 import scipy.interpolate as interp
 import libstempo
+import spharmORFbasis as anis
+import ephem
+from ephem import *
 
 from libstempo import GWB
 
@@ -400,10 +403,9 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
         res = -fplus*rplus - fcross*rcross
 
     psr.stoas[:] += res/86400
-
-
-def createGWB_clean(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
-                    f0=1e-9, beta=1, power=1, npts=600, howml=10):
+    
+def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
+                    clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1, power=1, npts=600, howml=10):
     """
     Function to create GW incuced residuals from a stochastic GWB as defined
     in Chamberlin, Creighton, Demorest et al. (2014)
@@ -414,6 +416,8 @@ def createGWB_clean(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
     @param noCorr: Add red noise with no spatial correlations
     @param seed: Random number seed
     @param turnover: Produce spectrum with turnover at frequency f0
+    @param clm: coefficients of spherical harmonic decomposition of GW power
+    @param lmax: maximum multipole of GW power decomposition
     @param f0: Frequency of spectrum turnover
     @param beta: Spectral index of power spectram for f << f0
     @param power: Fudge factor for flatness of spectrum turnover
@@ -453,7 +457,19 @@ def createGWB_clean(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
     if noCorr:
         ORF = N.diag(N.ones(Npulsars)*2)
     else:
-        ORF = computeORFMatrix(psr)
+        psrlocs = N.zeros((Npulsars,2))
+        for ii in range(Npulsars):
+            if 'RAJ' and 'DECJ' in psr[ii].pars:
+                psrlocs[ii] = psr[ii]['RAJ'].val, psr[ii]['DECJ'].val
+            elif 'ELONG' and 'ELAT' in psr[ii].pars:
+                fac = 180./N.pi
+                coords = Equatorial(Ecliptic(str(psr[ii]['ELONG'].val*fac), str(psr[ii]['ELAT'].val*fac)))
+                psrlocs[ii] = float(repr(coords.ra)), float(repr(coords.dec))
+
+        psrlocs[:,1] = N.pi/2. - psrlocs[:,1]
+        anisbasis = N.array(anis.CorrBasis(psrlocs,lmax)) 
+        ORF = sum(clm[kk]*anisbasis[kk] for kk in range(len(anisbasis)))
+        ORF *= 2.0
 
     # Define frequencies spanning from DC to Nyquist. 
     # This is a vector spanning these frequencies in increments of 1/(dur*howml).
@@ -501,7 +517,11 @@ def createGWB_clean(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
         f = interp.interp1d(ut, Res[ll,:], kind='linear')
         res_gw.append(f(psr[ll].toas()*86400))
 
-    return res_gw
+    #return res_gw
+    ct = 0
+    for p in psr:
+        p.stoas[:] += res_gw[ct]/86400.0
+        ct += 1
 
 def computeORFMatrix(psr):
     """
