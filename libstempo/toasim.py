@@ -75,7 +75,7 @@ def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-2
 def _geti(x,i):
     return x[i] if isinstance(x,(tuple,list,N.ndarray)) else x
 
-def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
+def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags='',iters=3):
     """Returns a libstempo tempopulsar object corresponding to a noiseless set
     of observations for the pulsar specified in 'parfile', with observations
     happening at times (MJD) given in the array (or list) 'obstimes', with
@@ -89,7 +89,9 @@ def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
     - 'observatory' can be either a common observatory name, or a list;
        it defaults to the IPTA MDC 'AXIS';
     - 'flags' can be a string (such as '-sys EFF.EBPP.1360') or a list of strings;
-       it defaults to an empty string."""
+       it defaults to an empty string;
+    - 'iters' is the number of iterative removals of computed residuals from TOAs
+      (which is how the fake pulsar is made...)"""
 
     import tempfile
     outfile = tempfile.NamedTemporaryFile(delete=False)
@@ -110,8 +112,11 @@ def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
     outfile.close()
 
     pulsar = libstempo.tempopulsar(parfile,timfile,dofit=False)
-    pulsar.stoas[:] -= pulsar.residuals(updatebats=False) / 86400.0
 
+    for i in range(iters):
+        pulsar.stoas[:] -= pulsar.residuals() / 86400.0
+        pulsar.formbats()
+    
     os.remove(timfile)
 
     return pulsar
