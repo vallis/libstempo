@@ -1,8 +1,11 @@
-from __future__ import print_function
-
+from __future__ import division
 import math, os
 import numpy as N
+import scipy.interpolate as interp
 import libstempo
+import spharmORFbasis as anis
+import ephem
+from ephem import *
 
 from libstempo import GWB
 
@@ -265,3 +268,296 @@ def add_line(psr,f,A,offset=0.5):
     sine = A * N.cos(2 * math.pi * f * day * (t - t0))
 
     psr.stoas[:] += sine / day
+
+def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
+                        pphase=None, psrTerm=True, evolve=True, \
+                        phase_approx=False, tref=0):
+    """
+    Function to create GW incuced residuals from a SMBMB as 
+    defined in Ellis et. al 2012,2013. Trys to be smart about it
+
+    @param psr: pulsar object
+    @param gwtheta: Polar angle of GW source in celestial coords [radians]
+    @param gwphi: Azimuthal angle of GW source in celestial coords [radians]
+    @param mc: Chirp mass of SMBMB [solar masses]
+    @param dist: Luminosity distance to SMBMB [Mpc]
+    @param fgw: Frequency of GW (twice the orbital frequency) [Hz]
+    @param phase0: Initial Phase of GW source [radians]
+    @param psi: Polarization of GW source [radians]
+    @param inc: Inclination of GW source [radians]
+    @param pdist: Pulsar distance to use other than those in psr [kpc]
+    @param pphase: Use pulsar phase to determine distance [radian]
+    @param psrTerm: Option to include pulsar term [boolean] 
+    @param evolve: Option to exclude evolution [boolean]
+
+    @return: Vector of induced residuals
+
+    """
+
+    # convert units
+    mc *= 4.9e-6         # convert from solar masses to seconds
+    dist *= 1.0267e14    # convert from Mpc to seconds
+
+    # define initial orbital frequency 
+    w0 = N.pi * fgw
+    phase0 /= 2 # orbital phase
+    w053 = w0**(-5/3)
+
+    # define variable for later use
+    cosgwtheta, cosgwphi = N.cos(gwtheta), N.cos(gwphi)
+    singwtheta, singwphi = N.sin(gwtheta), N.sin(gwphi)
+    sin2psi, cos2psi = N.sin(2*psi), N.cos(2*psi)
+    incfac1, incfac2 = -0.5*(3+N.cos(2*inc)), 2*N.cos(inc)
+
+    # unit vectors to GW source
+    m = N.array([-singwphi, cosgwphi, 0.0])
+    n = N.array([-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta])
+    omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
+
+    # various factors invloving GW parameters
+    fac1 = 256/5 * mc**(5/3) * w0**(8/3) 
+    fac2 = 1/32/mc**(5/3)
+    fac3 = mc**(5/3)/dist
+
+    # pulsar location
+    ptheta = N.pi/2 - psr['DECJ'].val
+    pphi = psr['RAJ'].val
+
+    # use definition from Sesana et al 2010 and Ellis et al 2012
+    phat = N.array([N.sin(ptheta)*N.cos(pphi), N.sin(ptheta)*N.sin(pphi),\
+            N.cos(ptheta)])
+
+    fplus = 0.5 * (N.dot(m, phat)**2 - N.dot(n, phat)**2) / (1+N.dot(omhat, phat))
+    fcross = (N.dot(m, phat)*N.dot(n, phat)) / (1 + N.dot(omhat, phat))
+    cosMu = -N.dot(omhat, phat)
+
+
+    # get values from pulsar object
+    toas = psr.toas().copy()*86400 - tref
+    if pphase is not None:
+        pd = pphase/(2*N.pi*fgw*(1-cosMu)) / 1.0267e11
+    else:
+        pd = pdist
+    
+
+    # convert units
+    pd *= 1.0267e11   # convert from kpc to seconds
+    
+    # get pulsar time
+    tp = toas-pd*(1-cosMu)
+
+    # evolution
+    if evolve:
+
+        # calculate time dependent frequency at earth and pulsar
+        omega = w0 * (1 - fac1 * toas)**(-3/8)
+        omega_p = w0 * (1 - fac1 * tp)**(-3/8)
+
+        # calculate time dependent phase
+        phase = phase0 + fac2 * (w053 - omega**(-5/3))
+        phase_p = phase0 + fac2 * (w053 - omega_p**(-5/3))
+    
+    # use approximation that frequency does not evlolve over observation time
+    elif phase_approx:
+        
+        # frequencies
+        omega = w0
+        omega_p = w0 * (1 + fac1 * pd*(1-cosMu))**(-3/8)
+        
+        # phases
+        phase = phase0 + omega * toas
+        phase_p = phase0 + fac2 * (w053 - omega_p**(-5/3)) + omega_p*toas
+          
+    # no evolution
+    else: 
+        
+        # monochromatic
+        omega = w0
+        omega_p = omega
+        
+        # phases
+        phase = phase0 + omega * toas
+        phase_p = phase0 + omega * tp
+        
+
+    # define time dependent coefficients
+    At = N.sin(2*phase) * incfac1
+    Bt = N.cos(2*phase) * incfac2
+    At_p = N.sin(2*phase_p) * incfac1
+    Bt_p = N.cos(2*phase_p) * incfac2
+
+    # now define time dependent amplitudes
+    alpha = fac3 / omega**(1/3)
+    alpha_p = fac3 / omega_p**(1/3)
+
+    # define rplus and rcross
+    rplus = alpha * (At*cos2psi - Bt*sin2psi)
+    rcross = alpha * (At*sin2psi + Bt*cos2psi)
+    rplus_p = alpha_p * (At_p*cos2psi - Bt_p*sin2psi)
+    rcross_p = alpha_p * (At_p*sin2psi + Bt_p*cos2psi)
+
+    # residuals
+    if psrTerm:
+        res = fplus*(rplus_p-rplus)+fcross*(rcross_p-rcross)
+    else:
+        res = -fplus*rplus - fcross*rcross
+
+    psr.stoas[:] += res/86400
+    
+def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
+                    clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1, power=1, npts=600, howml=10):
+    """
+    Function to create GW incuced residuals from a stochastic GWB as defined
+    in Chamberlin, Creighton, Demorest et al. (2014)
+    
+    @param psr: pulsar object for single pulsar
+    @param Amp: Amplitude of red noise in GW units
+    @param gam: Red noise power law spectral index
+    @param noCorr: Add red noise with no spatial correlations
+    @param seed: Random number seed
+    @param turnover: Produce spectrum with turnover at frequency f0
+    @param clm: coefficients of spherical harmonic decomposition of GW power
+    @param lmax: maximum multipole of GW power decomposition
+    @param f0: Frequency of spectrum turnover
+    @param beta: Spectral index of power spectram for f << f0
+    @param power: Fudge factor for flatness of spectrum turnover
+    @param npts: Number of points used in interpolation
+    @param howml: Lowest frequency is 1/(howml * T) 
+
+    
+    @return: list of residuals for each pulsar
+    
+    """
+
+    if seed is not None:
+        N.random.seed(seed)
+
+    # number of pulsars
+    Npulsars = len(psr)
+
+    # gw start and end times for entire data set
+    start = N.min([p.toas().min()*86400 for p in psr]) - 86400
+    stop = N.max([p.toas().max()*86400 for p in psr]) + 86400
+        
+    # duration of the signal
+    dur = stop - start
+    
+    # get maximum number of points
+    if npts is None:
+        # default to cadence of 2 weeks
+        npts = dur/(86400*14)
+
+    # make a vector of evenly sampled data points
+    ut = N.linspace(start, stop, npts)
+
+    # time resolution in days
+    dt = dur/npts
+
+    # compute the overlap reduction function
+    if noCorr:
+        ORF = N.diag(N.ones(Npulsars)*2)
+    else:
+        psrlocs = N.zeros((Npulsars,2))
+        for ii in range(Npulsars):
+            if 'RAJ' and 'DECJ' in psr[ii].pars:
+                psrlocs[ii] = psr[ii]['RAJ'].val, psr[ii]['DECJ'].val
+            elif 'ELONG' and 'ELAT' in psr[ii].pars:
+                fac = 180./N.pi
+                coords = Equatorial(Ecliptic(str(psr[ii]['ELONG'].val*fac), str(psr[ii]['ELAT'].val*fac)))
+                psrlocs[ii] = float(repr(coords.ra)), float(repr(coords.dec))
+
+        psrlocs[:,1] = N.pi/2. - psrlocs[:,1]
+        anisbasis = N.array(anis.CorrBasis(psrlocs,lmax)) 
+        ORF = sum(clm[kk]*anisbasis[kk] for kk in range(len(anisbasis)))
+        ORF *= 2.0
+
+    # Define frequencies spanning from DC to Nyquist. 
+    # This is a vector spanning these frequencies in increments of 1/(dur*howml).
+    f = N.arange(0, 1/(2*dt), 1/(dur*howml))
+    f[0] = f[1] # avoid divide by 0 warning
+    Nf = len(f)
+
+    # Use Cholesky transform to take 'square root' of ORF
+    M = N.linalg.cholesky(ORF)
+
+    # Create random frequency series from zero mean, unit variance, Gaussian distributions
+    w = N.zeros((Npulsars, Nf), complex)
+    for ll in range(Npulsars):
+        w[ll,:] = N.random.randn(Nf) + 1j*N.random.randn(Nf)
+
+    # strain amplitude
+    f1yr = 1/3.16e7
+    alpha = -0.5 * (gam-3)
+    hcf = Amp * (f/f1yr)**(alpha)
+    if turnover:
+        si = alpha - beta
+        hcf /= (1+(f/f0)**(power*si))**(1/power)
+
+    C = 1 / 96 / N.pi**2 * hcf**2 / f**3 * dur * howml
+
+    ### injection residuals in the frequency domain
+    Res_f = N.dot(M, w)
+    for ll in range(Npulsars):
+        Res_f[ll] = Res_f[ll] * C**(0.5)    # rescale by frequency dependent factor
+        Res_f[ll,0] = 0			    # set DC bin to zero to avoid infinities
+        Res_f[ll,-1] = 0		    # set Nyquist bin to zero also
+
+    # Now fill in bins after Nyquist (for fft data packing) and take inverse FT
+    Res_f2 = N.zeros((Npulsars, 2*Nf-2), complex)    
+    Res_t = N.zeros((Npulsars, 2*Nf-2))
+    Res_f2[:,0:Nf] = Res_f[:,0:Nf]
+    Res_f2[:, Nf:(2*Nf-2)] = N.conj(Res_f[:,(Nf-2):0:-1])
+    Res_t = N.real(N.fft.ifft(Res_f2)/dt)
+
+    # shorten data and interpolate onto TOAs
+    Res = N.zeros((Npulsars, npts))
+    res_gw = []
+    for ll in range(Npulsars):
+        Res[ll,:] = Res_t[ll, 10:(npts+10)]
+        f = interp.interp1d(ut, Res[ll,:], kind='linear')
+        res_gw.append(f(psr[ll].toas()*86400))
+
+    #return res_gw
+    ct = 0
+    for p in psr:
+        p.stoas[:] += res_gw[ct]/86400.0
+        ct += 1
+
+def computeORFMatrix(psr):
+    """
+    Compute ORF matrix.
+
+    @param psr: List of pulsar object instances
+
+    @return: Matrix that has the ORF values for every pulsar
+             pair with 2 on the diagonals to account for the 
+             pulsar term.
+
+    """
+
+    # begin loop over all pulsar pairs and calculate ORF
+    npsr = len(psr)
+    ORF = N.zeros((npsr, npsr))
+    phati = N.zeros(3)
+    phatj = N.zeros(3)
+    ptheta = [N.pi/2 - p['DECJ'].val for p in psr]
+    pphi = [p['RAJ'].val for p in psr]
+    for ll in range(0, npsr):
+        phati[0] = N.cos(pphi[ll]) * N.sin(ptheta[ll])
+        phati[1] = N.sin(pphi[ll]) * N.sin(ptheta[ll])
+        phati[2] = N.cos(ptheta[ll])
+
+        for kk in range(0, npsr):
+            phatj[0] = N.cos(pphi[kk]) * N.sin(ptheta[kk])
+            phatj[1] = N.sin(pphi[kk]) * N.sin(ptheta[kk])
+            phatj[2] = N.cos(ptheta[kk])
+           
+            if ll != kk:
+                xip = (1.-N.sum(phati*phatj)) / 2.
+                ORF[ll, kk] = 3.*( 1./3. + xip * ( N.log(xip) -1./6.) )
+            else:
+                ORF[ll, kk] = 2.0
+
+    return ORF
+
+
