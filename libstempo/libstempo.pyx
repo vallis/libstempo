@@ -77,6 +77,7 @@ cdef extern from "tempo2.h":
         char telID[100]        # telescope ID
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
         long double torb       # Combined binary delay
+        long long pulseN       # Pulse number
 
     ctypedef struct observatory:
         double height_grs80     # GRS80 geodetic height
@@ -869,6 +870,11 @@ cdef class tempopulsar:
         return elev
 
     # --- phase jumps: this is Rutger's stuff, he should check the API
+    # ---         RvH: Yep, I will, once I fully understand the tempo2
+    # ---              implications. I am still adding/testing how to optimally
+    # ---              use pulse numbers. See tempo2 formResiduals.C 1684--1700
+    # ---              (I'll probably handle everything internally, and only
+    # ---              rely on the pulse numbers given by tempo2)
 
     def phasejumps(self):
         """tempopulsar.phasejumps()
@@ -956,6 +962,15 @@ cdef class tempopulsar:
         
         def __get__(self):
             return self.psr[0].nPhaseJump
+
+    property pulse_number:
+        """Return the pulse number relative to PEPOCH, as detected by tempo2"""
+
+        def __get__(self):
+            cdef long long [:] _pulseN = <long long [:self.nobs]>&(self.psr[0].obsn[0].pulseN)
+            _pulseN.strides[0] = sizeof(observation)
+
+            return numpy.asarray(_pulseN)
 
     # --- tempo2 fit
     #     CHECK: does mean removal affect the answer?
