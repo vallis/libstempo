@@ -639,7 +639,7 @@ cdef class tempopulsar:
         else:
             raise TypeError
 
-    def toas(self):
+    def toas(self,updatebats=True):
         """tempopulsar.toas()
 
         Return computed SSB TOAs in units of days as a numpy.longdouble array.
@@ -648,7 +648,8 @@ cdef class tempopulsar:
         cdef long double [:] _toas = <long double [:self.nobs]>&(self.psr[0].obsn[0].bat)
         _toas.strides[0] = sizeof(observation)
 
-        updateBatsAll(self.psr,self.npsr)
+        if updatebats:
+            updateBatsAll(self.psr,self.npsr)
 
         return numpy.asarray(_toas).copy()
 
@@ -757,6 +758,15 @@ cdef class tempopulsar:
             formResiduals(self.psr,self.npsr,1 if removemean else 0)
 
         return numpy.asarray(_res).copy()
+
+    def formbats(self):
+        formBatsAll(self.psr,self.npsr)    
+
+    def updatebats(self):
+        updateBatsAll(self.psr,self.npsr)    
+
+    def formresiduals(self,removemean=True):
+        formResiduals(self.psr,self.npsr,1 if removemean else 0)    
 
     def designmatrix(self,updatebats=True,fixunits=False):
         """tempopulsar.designmatrix(updatebats=True,fixunits=False)
