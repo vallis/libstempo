@@ -9,8 +9,8 @@ def plotres(psr,deleted=False,group=None):
 
     res, t, errs = psr.residuals(), psr.toas(), psr.toaerrs
     
-    if (not deleted) and N.any(psr.deleted):
-        res, t, errs = res[~psr.deleted], t[~psr.deleted], errs[~psr.deleted]
+    if (not deleted) and N.any(psr.deleted != 0):
+        res, t, errs = res[psr.deleted == 0], t[psr.deleted == 0], errs[psr.deleted == 0]
         print("Plotting {0}/{1} nondeleted points.".format(len(res),psr.nobs))
 
     meanres = math.sqrt(N.mean(res**2)) / 1e-6

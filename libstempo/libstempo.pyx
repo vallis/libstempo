@@ -768,13 +768,15 @@ cdef class tempopulsar:
     def formresiduals(self,removemean=True):
         formResiduals(self.psr,self.npsr,1 if removemean else 0)    
 
-    def designmatrix(self,updatebats=True,fixunits=False):
-        """tempopulsar.designmatrix(updatebats=True,fixunits=False)
+    def designmatrix(self,updatebats=True,fixunits=True,fixsigns=True):
+        """tempopulsar.designmatrix(updatebats=True,fixunits=True)
 
         Returns the design matrix [nobs x (ndim+1)] as a numpy.longdouble array
         for current fit-parameter values. If fixunits=True, adjust the units
         of the design-matrix columns so that they match the tempo2
-        parameter units."""
+        parameter units. If fixsigns=True, adjust the sign of the columns
+        corresponding to FX (F0, F1, ...) and JUMP parameters, so that
+        they match finite-difference derivatives."""
 
         # save the fit state of excluded pars
         excludeparstate = {}
@@ -795,13 +797,7 @@ cdef class tempopulsar:
             updateBatsAll(self.psr,self.npsr)
 
         for i in range(self.nobs):
-            # for tempo2 versions older than, change to
-            # FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i)
             FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i,0)
-
-        # restore the fit state of excluded pars
-        for par in self.excludepars:
-            self[par].fit = excludeparstate[par]
 
         cdef numpy.ndarray[double, ndim=1] dev, err
 
@@ -819,6 +815,15 @@ cdef class tempopulsar:
 
             for i in range(ma):
                 ret[:,i] /= dev[i]
+
+        if fixsigns:
+            for i, par in enumerate(self.pars()):
+                if (par[0] == 'F' and par[1] in '0123456789') or (par[:4] == 'JUMP'):
+                    ret[:,i+1] *= -1
+
+        # restore the fit state of excluded pars
+        for par in self.excludepars:
+            self[par].fit = excludeparstate[par]
 
         return ret
 

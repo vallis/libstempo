@@ -1,3 +1,3 @@
-__version__ = "2.0.4"
+__version__ = "2.0.6"
 
 from .libstempo import *
