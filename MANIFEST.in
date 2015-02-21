@@ -4,6 +4,7 @@ include libstempo/libstempo.pyx
 include libstempo/libstempo.cpp
 include libstempo/GWsim-stub.h
 include libstempo/emcee.py
+include libstempo/fit.py
 include libstempo/like.py
 include libstempo/multinest.py
 include libstempo/plot.py
