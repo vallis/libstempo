@@ -1,11 +1,17 @@
 from __future__ import division
+from __future__ import print_function
+
 import math, os
-import numpy as N
-import scipy.interpolate as interp
+
+import numpy as N, scipy.interpolate as interp
+
 import libstempo
-import spharmORFbasis as anis
-import ephem
-from ephem import *
+import libstempo.spharmORFbasis as anis
+
+try:
+    import ephem
+except:
+    print("Warning: cannot find the ephem package, needed for createGWB.")
 
 from libstempo import GWB
 
@@ -33,7 +39,6 @@ def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha
     Returns the GWB object
     """
     
-
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
     gwb.add_gwb(psr,dist)
 
@@ -278,8 +283,8 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
                         pphase=None, psrTerm=True, evolve=True, \
                         phase_approx=False, tref=0):
     """
-    Function to create GW incuced residuals from a SMBMB as 
-    defined in Ellis et. al 2012,2013. Trys to be smart about it
+    Function to create GW-induced residuals from a SMBMB as 
+    defined in Ellis et. al 2012,2013. Tries to be smart about it...
 
     @param psr: pulsar object
     @param gwtheta: Polar angle of GW source in celestial coords [radians]
@@ -296,7 +301,6 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     @param evolve: Option to exclude evolution [boolean]
 
     @return: Vector of induced residuals
-
     """
 
     # convert units
@@ -412,8 +416,8 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
 def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
                     clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1, power=1, npts=600, howml=10):
     """
-    Function to create GW incuced residuals from a stochastic GWB as defined
-    in Chamberlin, Creighton, Demorest et al. (2014)
+    Function to create GW-induced residuals from a stochastic GWB as defined
+    in Chamberlin, Creighton, Demorest, et al. (2014).
     
     @param psr: pulsar object for single pulsar
     @param Amp: Amplitude of red noise in GW units
@@ -428,10 +432,8 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
     @param power: Fudge factor for flatness of spectrum turnover
     @param npts: Number of points used in interpolation
     @param howml: Lowest frequency is 1/(howml * T) 
-
     
-    @return: list of residuals for each pulsar
-    
+    @return: list of residuals for each pulsar    
     """
 
     if seed is not None:
@@ -468,7 +470,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
                 psrlocs[ii] = psr[ii]['RAJ'].val, psr[ii]['DECJ'].val
             elif 'ELONG' and 'ELAT' in psr[ii].pars:
                 fac = 180./N.pi
-                coords = Equatorial(Ecliptic(str(psr[ii]['ELONG'].val*fac), str(psr[ii]['ELAT'].val*fac)))
+                coords = ephem.Equatorial(ephem.Ecliptic(str(psr[ii]['ELONG'].val*fac), str(psr[ii]['ELAT'].val*fac)))
                 psrlocs[ii] = float(repr(coords.ra)), float(repr(coords.dec))
 
         psrlocs[:,1] = N.pi/2. - psrlocs[:,1]

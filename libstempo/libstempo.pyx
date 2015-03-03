@@ -741,13 +741,13 @@ cdef class tempopulsar:
             raise NotImplementedError("Flag-setting capabilities are coming soon.")
 
     # --- residuals
-    #     TO DO: weighted mean removal
     def residuals(self,updatebats=True,formresiduals=True,removemean=True):
         """tempopulsar.residuals(updatebats=True,formresiduals=True,removemean=True)
 
         Returns residuals as a numpy.longdouble array (a copy of current values).
         Will update TOAs/recompute residuals if `updatebats`/`formresiduals` is True
-        (default for both). Will remove residual mean if `removemean` is True."""
+        (default for both). Will remove residual mean if `removemean` is True;
+        will remove weighted residual mean if `removemean` is 'weighted'."""
 
         cdef long double [:] _res = <long double [:self.nobs]>&(self.psr[0].obsn[0].residual)
         _res.strides[0] = sizeof(observation)
@@ -757,7 +757,12 @@ cdef class tempopulsar:
         if formresiduals:
             formResiduals(self.psr,self.npsr,1 if removemean else 0)
 
-        return numpy.asarray(_res).copy()
+        res = numpy.asarray(_res).copy()
+        if removemean == 'weighted':
+            err = self.toaerrs
+            res -= numpy.sum(res/err**2) / numpy.sum(1/err**2)
+
+        return res
 
     def formbats(self):
         formBatsAll(self.psr,self.npsr)    
@@ -1005,35 +1010,29 @@ cdef class tempopulsar:
         self.fitrms = self.psr[0].rmsPost
 
     # --- chisq
-    #     TO DO: subtract weighted mean
-    def chisq(self):
-        """tempopulsar.chisq()
+    def chisq(self,removemean='weighted'):
+        """tempopulsar.chisq(removemean='weighted')
 
-        Computes the chisq of current residuals vs errors.
+        Computes the chisq of current residuals vs errors,
+        removing the noise-weighted residual, unless
+        specified otherwise."""
 
-        Note: this is currently different form the tempo2 chisq,
-        since we subtract the mean residual instead of the
-        noise-weighted mean."""
-
-        res, err = self.residuals(), self.toaerrs
+        res, err = self.residuals(removemean=removemean), self.toaerrs
 
         return numpy.sum(res * res / (1e-12 * err * err))
 
     # --- rms residual
-    #     TO DO: subtract weighted mean
-    def rms(self):
-        """tempopulsar.rms()
+    def rms(self,removemean='weighted'):
+        """tempopulsar.rms(removemean='weighted')
 
-        Computes the current residual rms.
-
-        Note: this is currently different from the tempo2 rms,
-        since we subtract the mean residual instead of the
-        noise-weighted mean."""
+        Computes the current residual rms, 
+        removing the noise-weighted residual, unless
+        specified otherwise."""
 
         err = self.toaerrs
         norm = numpy.sum(1.0 / (1e-12 * err * err))
 
-        return math.sqrt(self.chisq() / norm)
+        return math.sqrt(self.chisq(removemean=removemean) / norm)
 
     def savepar(self,parfile):
         """tempopulsar.savepar(parfile)
