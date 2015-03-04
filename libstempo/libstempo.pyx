@@ -752,13 +752,16 @@ cdef class tempopulsar:
         cdef long double [:] _res = <long double [:self.nobs]>&(self.psr[0].obsn[0].residual)
         _res.strides[0] = sizeof(observation)
 
+        if removemean not in [True,False,'weighted']:
+            raise ValueError("Argument 'removemean' should be True, False, or 'weighted'.")
+
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
         if formresiduals:
-            formResiduals(self.psr,self.npsr,1 if removemean else 0)
+            formResiduals(self.psr,self.npsr,1 if removemean is True else 0)
 
         res = numpy.asarray(_res).copy()
-        if removemean == 'weighted':
+        if removemean is 'weighted':
             err = self.toaerrs
             res -= numpy.sum(res/err**2) / numpy.sum(1/err**2)
 
