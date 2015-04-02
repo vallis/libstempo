@@ -125,23 +125,55 @@ def make_ideal(psr):
     psr.stoas[:] -= psr.residuals() / 86400.0
     psr.fit()
 
-def add_efac(psr,efac=1.0,seed=None):
+def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
     """Add nominal TOA errors, multiplied by `efac` factor.
     Optionally take a pseudorandom-number-generator seed."""
     
     if seed is not None:
         N.random.seed(seed)
 
-    psr.stoas[:] += efac * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
+    # default efacvec
+    efacvec = N.ones(psr.nobs)
 
-def add_equad(psr,equad,seed=None):
+    # check that efac is scalar if flags is None
+    if flags is None:
+        if not N.isscalar(efac):
+            raise ValueError('ERROR: If flags is None, efac must be a scalar')
+        else:
+            efacvec = N.ones(psr.nobs) * efac
+
+    if flags is not None and flagid is not None and not N.isscalar(efac):
+        if len(efac) == len(flags):
+            for ct, flag in enumerate(flags):
+                ind = flag == N.array(psr.flags[flagid])
+                efacvec[ind] = efac[ct]
+
+    psr.stoas[:] += efacvec * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
+
+def add_equad(psr, equad, flagid=None, flags=None, seed=None):
     """Add quadrature noise of rms `equad` [s].
     Optionally take a pseudorandom-number-generator seed."""
 
     if seed is not None:
         N.random.seed(seed)
     
-    psr.stoas[:] += (equad / day) * N.random.randn(psr.nobs)
+    # default equadvec
+    equadvec = N.zeros(psr.nobs)
+
+    # check that equad is scalar if flags is None
+    if flags is None:
+        if not N.isscalar(equad):
+            raise ValueError('ERROR: If flags is None, equad must be a scalar')
+        else:
+            equadvec = N.ones(psr.nobs) * equad
+
+    if flags is not None and flagid is not None and not N.isscalar(equad):
+        if len(equad) == len(flags):
+            for ct, flag in enumerate(flags):
+                ind = flag == N.array(psr.flags[flagid])
+                equadvec[ind] = equad[ct]
+    
+    psr.stoas[:] += (equadvec / day) * N.random.randn(psr.nobs)
 
 def quantize(times,dt=1):
     bins    = N.arange(N.min(times),N.max(times)+dt,dt)
@@ -162,7 +194,8 @@ def quantize(times,dt=1):
     
     return t, U
 
-def quantize_fast(times,dt=1):
+def quantize_fast(times, flags=None, dt=1):
+    
     isort = N.argsort(times)
     
     bucket_ref = [times[isort[0]]]
@@ -175,29 +208,59 @@ def quantize_fast(times,dt=1):
             bucket_ref.append(times[i])
             bucket_ind.append([i])
     
-    t = N.array([N.mean(times[l]) for l in bucket_ind],'d')
+    avetoas = N.array([N.mean(times[l]) for l in bucket_ind],'d')
+    if flags is not None:
+        aveflags = N.array([flags[l[0]] for l in bucket_ind])
     
     U = N.zeros((len(times),len(bucket_ind)),'d')
     for i,l in enumerate(bucket_ind):
         U[l,i] = 1
-    
-    return t, U
 
+    if flags is not None:
+        ret = avetoas, aveflags, U
+    else:
+        ret = avetoas, U
+
+    return ret
+        
 # check that the two versions match
 # t, U = quantize(N.array(psr.toas(),'d'),dt=1)
 # t2, U2 = quantize_fast(N.array(psr.toas(),'d'),dt=1)
 # print N.sum((t - t2)**2), N.all(U == U2)
 
-def add_jitter(psr,equad,coarsegrain=0.1,seed=None):
+def add_jitter(psr, equad ,flagid=None, flags=None, coarsegrain=0.1,
+               seed=None):
     """Add correlated quadrature noise of rms `equad` [s],
     with coarse-graining time `coarsegrain` [days].
     Optionally take a pseudorandom-number-generator seed."""
     
     if seed is not None:
         N.random.seed(seed)
+    
+    if flags is None:
+        t, U = quantize_fast(N.array(psr.toas(),'d'), dt=coarsegrain)
+    elif flags is not None and flagid is not None:
+        t, f, U = quantize_fast(N.array(psr.toas(),'d'),
+                                N.array(psr.flags[flagid]),
+                                dt=coarsegrain)
 
-    t, U = quantize_fast(N.array(psr.toas(),'d'),0.1)
-    psr.stoas[:] += (equad / day) * N.dot(U,N.random.randn(U.shape[1]))
+    # default jitter value
+    equadvec = N.zeros(len(t))
+    
+    # check that jitter is scalar if flags is None
+    if flags is None:
+        if not N.isscalar(equad):
+            raise ValueError('ERROR: If flags is None, jitter must be a scalar')
+        else:
+            equadvec = N.ones(len(t)) * equad
+
+    if flags is not None and flagid is not None and not N.isscalar(equad):
+        if len(equad) == len(flags):
+            for ct, flag in enumerate(flags):
+                ind = flag == N.array(f)
+                equadvec[ind] = equad[ct]
+
+    psr.stoas[:] += (1 / day) * N.dot(U*equadvec, N.random.randn(U.shape[1]))
 
 def add_rednoise(psr,A,gamma,components=10,seed=None):
     """Add red noise with P(f) = A^2 / (12 pi^2) (f year)^-gamma,
