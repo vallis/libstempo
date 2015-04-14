@@ -64,7 +64,7 @@ setup(name = 'libstempo',
       package_dir = {'libstempo': 'libstempo'},
       package_data = {'libstempo': ['data/*']},
 
-      py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee','libstempo.plot','libstempo.toasim'],
+      py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee','libstempo.plot','libstempo.toasim','libstempo.spharmORFbasis'],
 
       ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
                                         language="c++",

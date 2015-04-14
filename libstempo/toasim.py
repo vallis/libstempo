@@ -6,7 +6,7 @@ import math, os
 import numpy as N, scipy.interpolate as interp
 
 import libstempo
-import libstempo.spharmORFbasis as anis
+import spharmORFbasis as anis
 
 try:
     import ephem
