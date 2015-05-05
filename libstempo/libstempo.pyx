@@ -776,15 +776,16 @@ cdef class tempopulsar:
     def formresiduals(self,removemean=True):
         formResiduals(self.psr,self.npsr,1 if removemean else 0)    
 
-    def designmatrix(self,updatebats=True,fixunits=True,fixsigns=True):
-        """tempopulsar.designmatrix(updatebats=True,fixunits=True)
+    def designmatrix(self,updatebats=True,fixunits=True,fixsigns=True,incoffset=True):
+        """tempopulsar.designmatrix(updatebats=True,fixunits=True,incoffset=True)
 
         Returns the design matrix [nobs x (ndim+1)] as a numpy.longdouble array
         for current fit-parameter values. If fixunits=True, adjust the units
         of the design-matrix columns so that they match the tempo2
         parameter units. If fixsigns=True, adjust the sign of the columns
         corresponding to FX (F0, F1, ...) and JUMP parameters, so that
-        they match finite-difference derivatives."""
+        they match finite-difference derivatives. If incoffset=False, the
+        constant phaseoffset column is not included in the designmatrix."""
 
         # save the fit state of excluded pars
         excludeparstate = {}
@@ -833,7 +834,7 @@ cdef class tempopulsar:
         for par in self.excludepars:
             self[par].fit = excludeparstate[par]
 
-        return ret
+        return ret[:,(0 if incoffset else 1):]
 
     # --- observation telescope
     #     TO DO: support setting?
