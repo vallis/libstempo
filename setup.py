@@ -49,7 +49,7 @@ to point me to the tempo2 install root (e.g., /usr/local if tempo2.h is
 in /usr/local/include).
 """
 
-setup(name = 'libstempo',
+setup(name = 'libstempo_mat',
       version = '1.3.2',
       description = 'A Python wrapper for tempo2',
 
