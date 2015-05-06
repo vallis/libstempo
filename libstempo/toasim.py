@@ -5,9 +5,10 @@ import math, os
 import numpy as N
 import scipy.interpolate as interp
 from . import libstempo
-import spharmORFbasis as anis
+from . import spharmORFbasis as anis
 import ephem
 from ephem import *
+import six
 
 from .libstempo import GWB
 
@@ -99,16 +100,16 @@ def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
     import tempfile
     outfile = tempfile.NamedTemporaryFile(delete=False)
 
-    outfile.write('FORMAT 1\n')
-    outfile.write('MODE 1\n')
+    outfile.write(six.b('FORMAT 1\n'))
+    outfile.write(six.b('MODE 1\n'))
 
     obsname = 'fake_' + os.path.basename(parfile)
     if obsname[-4:] == '.par':
         obsname = obsname[:-4]
 
     for i,t in enumerate(obstimes):
-        outfile.write('{0} {1} {2} {3} {4} {5}\n'.format(
-            obsname,_geti(freq,i),t,_geti(toaerr,i),_geti(observatory,i),_geti(flags,i)
+        outfile.write(six.b('{0} {1} {2} {3} {4} {5}\n'.format(
+            obsname,_geti(freq,i),t,_geti(toaerr,i),_geti(observatory,i),_geti(flags,i))
         ))
 
     timfile = outfile.name
