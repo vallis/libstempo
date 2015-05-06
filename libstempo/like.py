@@ -212,7 +212,7 @@ class tempopar(str):
 
             return y0 + x * (y1 - y0)
         except AttributeError:
-            raise AttributeError, '[ERROR] libstempo.like.tempopar.map: range is undefined for parameter {0}.'.format(self)
+            raise AttributeError('[ERROR] libstempo.like.tempopar.map: range is undefined for parameter {0}.'.format(self))
 
     @property
     def range(self):
@@ -331,11 +331,11 @@ class Prior(dict):
                           dtype=[('offset','f16')])
 
     def report(self):
-        print
-        print "==== libstempo.like.Prior report ===="
-        print "  Search        parameters: {0}".format(' '.join(_findrange(self.searchpars)))
-        print "  Marginalized  parameters: {0}".format(' '.join(_findrange(self.fitpars)))
-        print "  Other set     parameters: {0}".format(' '.join(_findrange(self.setpars)))
+        print()
+        print("==== libstempo.like.Prior report ====")
+        print("  Search        parameters: {0}".format(' '.join(_findrange(self.searchpars))))
+        print("  Marginalized  parameters: {0}".format(' '.join(_findrange(self.fitpars))))
+        print("  Other set     parameters: {0}".format(' '.join(_findrange(self.setpars))))
 
         ranges = []
         for par in self.searchpars:
@@ -366,13 +366,13 @@ class Prior(dict):
         # eventually we'll make this into a separate function to handle avgs + vars, etc.
         lens = [max(6,max(map(len,l))) for l in [self.searchpars,ranges,priors,offsets]]
 
-        print "  Search ranges and priors:"
+        print("  Search ranges and priors:")
         line = '    {{0:{0}s}} | {{1:{1}s}} | {{2:{2}s}} | {{3:{3}s}}'.format(*lens)
-        print line.format('PAR','RANGE','PRIOR','OFFSET')
+        print(line.format('PAR','RANGE','PRIOR','OFFSET'))
         for p in zip(self.searchpars,ranges,priors,offsets):
-            print line.format(*p)
+            print(line.format(*p))
 
-        print
+        print()
 
     # as is, this is a "cube" prior suitable for multinest integration
     # it takes transformed parameters, so offsets don't matter
@@ -519,9 +519,9 @@ class Loglike(object):
             else:
                 # these are the "real" tempo2 parameters
                 if par not in self.psr:
-                    raise KeyError, "[ERROR] libstempo.like.Loglike: parameter {0} unknown.".format(par)
+                    raise KeyError("[ERROR] libstempo.like.Loglike: parameter {0} unknown.".format(par))
                 elif self.psr[par].fit == True:
-                    raise ValueError, "[ERROR] libstempo.like.Loglike: trying to set marginalized parameter {0}.".format(par)
+                    raise ValueError("[ERROR] libstempo.like.Loglike: trying to set marginalized parameter {0}.".format(par))
                 else:
                     self.pars.append(par)
 
@@ -535,7 +535,7 @@ class Loglike(object):
             self.err2 = [(1.0e-6 * (self.psr.flags['sys'] == sys))**2 for sys in self.sysflags]
 
             if N.any([not hasattr(self,efacpar) for efacpar in self.efacpars]):
-                raise KeyError, "[ERROR] libstempo.like.Loglike: when multiefac=True, you need to fit (log){0}--{1}.".format(self.efacpars[0],self.efacpars[-1])
+                raise KeyError("[ERROR] libstempo.like.Loglike: when multiefac=True, you need to fit (log){0}--{1}.".format(self.efacpars[0],self.efacpars[-1]))
         else:
             self.err2 = (1.0e-6 * self.psr.toaerrs)**2
 
@@ -644,15 +644,15 @@ class Loglike(object):
             ratio  = [('%.1e'  % (data[par].err/data.tempo[par].err)) for par in self.searchpars]
             fdelta = [('%+.1e' % ((data[par].val-data.tempo[par].val)/data.tempo[par].err)) for par in self.searchpars]
 
-        print
-        print "==== libstempo.like.Loglike report ===="
+        print()
+        print("==== libstempo.like.Loglike report ====")
 
         lens = [max(6,max(map(len,l))) for l in [self.searchpars,tempo,mcmc,delta,ratio,fdelta]]
 
-        print "  Tempo2 ML values and MCMC conditional means:"
+        print("  Tempo2 ML values and MCMC conditional means:")
         line = '    {{0:{0}s}} | {{1:{1}s}} | {{2:{2}s}} | {{3:{3}s}} | {{4:{4}s}} | {{5:{5}s}}'.format(*lens)
-        print line.format('PAR','TEMPO2','MCMC','DIFF','ERAT','BIAS')
+        print(line.format('PAR','TEMPO2','MCMC','DIFF','ERAT','BIAS'))
         for p in zip(self.searchpars,tempo,mcmc,delta,ratio,fdelta):
-            print line.format(*p)
+            print(line.format(*p))
 
-        print
+        print()

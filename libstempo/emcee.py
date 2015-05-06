@@ -3,7 +3,7 @@ from __future__ import (absolute_import, unicode_literals, division,
 
 import math
 import numpy as N
-from multinest import load_emcee as load
+from .multinest import load_emcee as load
 
 # note: we run emcee as if it was multinest, by remapping parameter ranges to [0,1]
 #       if we didn't, the logPL function could just be

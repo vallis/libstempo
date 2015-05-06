@@ -1,13 +1,15 @@
-from __future__ import division
+from __future__ import (absolute_import, unicode_literals, division,
+                        print_function)
+
 import math, os
 import numpy as N
 import scipy.interpolate as interp
-import libstempo
+from . import libstempo
 import spharmORFbasis as anis
 import ephem
 from ephem import *
 
-from libstempo import GWB
+from .libstempo import GWB
 
 day = 24 * 3600
 year = 365.25 * day
@@ -32,7 +34,7 @@ def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha
 
     Returns the GWB object
     """
-    
+
 
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
     gwb.add_gwb(psr,dist)
@@ -41,7 +43,7 @@ def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha
 
 def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20, alpha=-0.66, \
         logspacing=True, dipoleamps=None, dipoledir=None, dipolemag=None):
-        
+
     """Add a stochastic background from inspiraling binaries distributed
     according to a pure dipole distribution, using the tempo2
     code that underlies the GWdipolebkgrd plugin.
@@ -61,18 +63,18 @@ def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-2
     dipoledir=[dipolephi, dipoletheta]
 
     It is also possible to create a background object with
-    
+
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing)
 
     then call the method gwb.add_gwb(pulsar[i],dist) repeatedly to get a
     consistent background for multiple pulsars.
-    
+
     Returns the GWB object
     """
 
     gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing,dipoleamps,dipoledir,dipolemag)
     gwb.add_gwb(psr,dist)
-    
+
     return gwb
 
 def _geti(x,i):
@@ -121,14 +123,14 @@ def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags=''):
 
 def make_ideal(psr):
     """Adjust the TOAs so that the residuals to zero, then refit."""
-    
+
     psr.stoas[:] -= psr.residuals() / 86400.0
     psr.fit()
 
 def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
     """Add nominal TOA errors, multiplied by `efac` factor.
     Optionally take a pseudorandom-number-generator seed."""
-    
+
     if seed is not None:
         N.random.seed(seed)
 
@@ -156,7 +158,7 @@ def add_equad(psr, equad, flagid=None, flags=None, seed=None):
 
     if seed is not None:
         N.random.seed(seed)
-    
+
     # default equadvec
     equadvec = N.zeros(psr.nobs)
 
@@ -172,7 +174,7 @@ def add_equad(psr, equad, flagid=None, flags=None, seed=None):
             for ct, flag in enumerate(flags):
                 ind = flag == N.array(psr.flags[flagid])
                 equadvec[ind] = equad[ct]
-    
+
     psr.stoas[:] += (equadvec / day) * N.random.randn(psr.nobs)
 
 def quantize(times,dt=1):
@@ -191,27 +193,27 @@ def quantize(times,dt=1):
             U[indices == i,j] = 1
             t[j] = N.mean(times[indices == i])
             j = j + 1
-    
+
     return t, U
 
 def quantize_fast(times, flags=None, dt=1):
-    
+
     isort = N.argsort(times)
-    
+
     bucket_ref = [times[isort[0]]]
     bucket_ind = [[isort[0]]]
-    
+
     for i in isort[1:]:
         if times[i] - bucket_ref[-1] < dt:
             bucket_ind[-1].append(i)
         else:
             bucket_ref.append(times[i])
             bucket_ind.append([i])
-    
+
     avetoas = N.array([N.mean(times[l]) for l in bucket_ind],'d')
     if flags is not None:
         aveflags = N.array([flags[l[0]] for l in bucket_ind])
-    
+
     U = N.zeros((len(times),len(bucket_ind)),'d')
     for i,l in enumerate(bucket_ind):
         U[l,i] = 1
@@ -222,7 +224,7 @@ def quantize_fast(times, flags=None, dt=1):
         ret = avetoas, U
 
     return ret
-        
+
 # check that the two versions match
 # t, U = quantize(N.array(psr.toas(),'d'),dt=1)
 # t2, U2 = quantize_fast(N.array(psr.toas(),'d'),dt=1)
@@ -233,10 +235,10 @@ def add_jitter(psr, equad ,flagid=None, flags=None, coarsegrain=0.1,
     """Add correlated quadrature noise of rms `equad` [s],
     with coarse-graining time `coarsegrain` [days].
     Optionally take a pseudorandom-number-generator seed."""
-    
+
     if seed is not None:
         N.random.seed(seed)
-    
+
     if flags is None:
         t, U = quantize_fast(N.array(psr.toas(),'d'), dt=coarsegrain)
     elif flags is not None and flagid is not None:
@@ -246,7 +248,7 @@ def add_jitter(psr, equad ,flagid=None, flags=None, coarsegrain=0.1,
 
     # default jitter value
     equadvec = N.zeros(len(t))
-    
+
     # check that jitter is scalar if flags is None
     if flags is None:
         if not N.isscalar(equad):
@@ -269,7 +271,7 @@ def add_rednoise(psr,A,gamma,components=10,seed=None):
 
     if seed is not None:
         N.random.seed(seed)
-    
+
     t = psr.toas()
     minx, maxx = N.min(t), N.max(t)
     x = (t - minx) / (maxx - minx)
@@ -287,7 +289,7 @@ def add_rednoise(psr,A,gamma,components=10,seed=None):
 
     norm = A**2 * year**2 / (12 * math.pi**2 * T)
     prior = norm * f**(-gamma)
-    
+
     y = N.sqrt(prior) * N.random.randn(size)
     psr.stoas[:] += (1.0/day) * N.dot(F,y)
 
@@ -298,7 +300,7 @@ def add_dm(psr,A,gamma,components=10,seed=None):
 
     if seed is not None:
         N.random.seed(seed)
-    
+
     t = psr.toas()
     v = DMk / psr.freqs**2
 
@@ -318,14 +320,14 @@ def add_dm(psr,A,gamma,components=10,seed=None):
 
     norm = A**2 * year**2 / (12 * math.pi**2 * T)
     prior = norm * f**(-gamma)
-    
+
     y = N.sqrt(prior) * N.random.randn(size)
     psr.stoas[:] += (1.0/day) * v * N.dot(F,y)
-    
+
 def add_line(psr,f,A,offset=0.5):
     """Add a line of frequency `f` [Hz] and amplitude `A` [s],
     with origin at a fraction `offset` through the dataset."""
-    
+
     t = psr.toas()
     t0 = offset * (N.max(t) - N.min(t))
     sine = A * N.cos(2 * math.pi * f * day * (t - t0))
@@ -336,7 +338,7 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
                         pphase=None, psrTerm=True, evolve=True, \
                         phase_approx=False, tref=0):
     """
-    Function to create GW incuced residuals from a SMBMB as 
+    Function to create GW incuced residuals from a SMBMB as
     defined in Ellis et. al 2012,2013. Trys to be smart about it
 
     @param psr: pulsar object
@@ -350,7 +352,7 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     @param inc: Inclination of GW source [radians]
     @param pdist: Pulsar distance to use other than those in psr [kpc]
     @param pphase: Use pulsar phase to determine distance [radian]
-    @param psrTerm: Option to include pulsar term [boolean] 
+    @param psrTerm: Option to include pulsar term [boolean]
     @param evolve: Option to exclude evolution [boolean]
 
     @return: Vector of induced residuals
@@ -361,7 +363,7 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     mc *= 4.9e-6         # convert from solar masses to seconds
     dist *= 1.0267e14    # convert from Mpc to seconds
 
-    # define initial orbital frequency 
+    # define initial orbital frequency
     w0 = N.pi * fgw
     phase0 /= 2 # orbital phase
     w053 = w0**(-5/3)
@@ -378,7 +380,7 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
 
     # various factors invloving GW parameters
-    fac1 = 256/5 * mc**(5/3) * w0**(8/3) 
+    fac1 = 256/5 * mc**(5/3) * w0**(8/3)
     fac2 = 1/32/mc**(5/3)
     fac3 = mc**(5/3)/dist
 
@@ -401,11 +403,11 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
         pd = pphase/(2*N.pi*fgw*(1-cosMu)) / 1.0267e11
     else:
         pd = pdist
-    
+
 
     # convert units
     pd *= 1.0267e11   # convert from kpc to seconds
-    
+
     # get pulsar time
     tp = toas-pd*(1-cosMu)
 
@@ -419,29 +421,29 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
         # calculate time dependent phase
         phase = phase0 + fac2 * (w053 - omega**(-5/3))
         phase_p = phase0 + fac2 * (w053 - omega_p**(-5/3))
-    
+
     # use approximation that frequency does not evlolve over observation time
     elif phase_approx:
-        
+
         # frequencies
         omega = w0
         omega_p = w0 * (1 + fac1 * pd*(1-cosMu))**(-3/8)
-        
+
         # phases
         phase = phase0 + omega * toas
         phase_p = phase0 + fac2 * (w053 - omega_p**(-5/3)) + omega_p*toas
-          
+
     # no evolution
-    else: 
-        
+    else:
+
         # monochromatic
         omega = w0
         omega_p = omega
-        
+
         # phases
         phase = phase0 + omega * toas
         phase_p = phase0 + omega * tp
-        
+
 
     # define time dependent coefficients
     At = N.sin(2*phase) * incfac1
@@ -466,13 +468,13 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
         res = -fplus*rplus - fcross*rcross
 
     psr.stoas[:] += res/86400
-    
+
 def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
                     clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1, power=1, npts=600, howml=10):
     """
     Function to create GW incuced residuals from a stochastic GWB as defined
     in Chamberlin, Creighton, Demorest et al. (2014)
-    
+
     @param psr: pulsar object for single pulsar
     @param Amp: Amplitude of red noise in GW units
     @param gam: Red noise power law spectral index
@@ -485,11 +487,11 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
     @param beta: Spectral index of power spectram for f << f0
     @param power: Fudge factor for flatness of spectrum turnover
     @param npts: Number of points used in interpolation
-    @param howml: Lowest frequency is 1/(howml * T) 
+    @param howml: Lowest frequency is 1/(howml * T)
 
-    
+
     @return: list of residuals for each pulsar
-    
+
     """
 
     if seed is not None:
@@ -501,10 +503,10 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
     # gw start and end times for entire data set
     start = N.min([p.toas().min()*86400 for p in psr]) - 86400
     stop = N.max([p.toas().max()*86400 for p in psr]) + 86400
-        
+
     # duration of the signal
     dur = stop - start
-    
+
     # get maximum number of points
     if npts is None:
         # default to cadence of 2 weeks
@@ -530,11 +532,11 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
                 psrlocs[ii] = float(repr(coords.ra)), float(repr(coords.dec))
 
         psrlocs[:,1] = N.pi/2. - psrlocs[:,1]
-        anisbasis = N.array(anis.CorrBasis(psrlocs,lmax)) 
+        anisbasis = N.array(anis.CorrBasis(psrlocs,lmax))
         ORF = sum(clm[kk]*anisbasis[kk] for kk in range(len(anisbasis)))
         ORF *= 2.0
 
-    # Define frequencies spanning from DC to Nyquist. 
+    # Define frequencies spanning from DC to Nyquist.
     # This is a vector spanning these frequencies in increments of 1/(dur*howml).
     f = N.arange(0, 1/(2*dt), 1/(dur*howml))
     f[0] = f[1] # avoid divide by 0 warning
@@ -566,7 +568,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
         Res_f[ll,-1] = 0		    # set Nyquist bin to zero also
 
     # Now fill in bins after Nyquist (for fft data packing) and take inverse FT
-    Res_f2 = N.zeros((Npulsars, 2*Nf-2), complex)    
+    Res_f2 = N.zeros((Npulsars, 2*Nf-2), complex)
     Res_t = N.zeros((Npulsars, 2*Nf-2))
     Res_f2[:,0:Nf] = Res_f[:,0:Nf]
     Res_f2[:, Nf:(2*Nf-2)] = N.conj(Res_f[:,(Nf-2):0:-1])
@@ -593,7 +595,7 @@ def computeORFMatrix(psr):
     @param psr: List of pulsar object instances
 
     @return: Matrix that has the ORF values for every pulsar
-             pair with 2 on the diagonals to account for the 
+             pair with 2 on the diagonals to account for the
              pulsar term.
 
     """
@@ -614,7 +616,7 @@ def computeORFMatrix(psr):
             phatj[0] = N.cos(pphi[kk]) * N.sin(ptheta[kk])
             phatj[1] = N.sin(pphi[kk]) * N.sin(ptheta[kk])
             phatj[2] = N.cos(ptheta[kk])
-           
+
             if ll != kk:
                 xip = (1.-N.sum(phati*phatj)) / 2.
                 ORF[ll, kk] = 3.*( 1./3. + xip * ( N.log(xip) -1./6.) )

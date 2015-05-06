@@ -1,1 +1,1 @@
-from libstempo import *
+from .libstempo import *
