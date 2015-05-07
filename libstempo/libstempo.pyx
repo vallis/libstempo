@@ -988,13 +988,32 @@ cdef class tempopulsar:
             return self.psr[0].nPhaseJump
 
     property pulse_number:
-        """Return the pulse number relative to PEPOCH, as detected by tempo2"""
+        """Return the pulse number relative to PEPOCH, as detected by tempo2
+        
+        WARNING: Will be deprecated in the future. Use `pulsenumbers`.
+        """
 
         def __get__(self):
             cdef long long [:] _pulseN = <long long [:self.nobs]>&(self.psr[0].obsn[0].pulseN)
             _pulseN.strides[0] = sizeof(observation)
 
             return numpy.asarray(_pulseN)
+
+    def pulsenumbers(self,updatebats=True,formresiduals=True,removemean=True):
+        """Return the pulse number relative to PEPOCH, as detected by tempo2
+
+        Returns the pulse numbers as a numpy array. Will update the
+        TOAs/recompute residuals if `updatebats`/`formresiduals` is True
+        (default for both). If that is requested, the residual mean is removed
+        `removemean` is True. All this just like in `residuals`.
+        """
+        cdef long long [:] _pulseN = <long long [:self.nobs]>&(self.psr[0].obsn[0].pulseN)
+        _pulseN.strides[0] = sizeof(observation)
+
+        res = self.residuals(updatebats=updatebats, formresiduals=formresiduals,
+                removemean=removemean)
+
+        return numpy.asarray(_pulseN)
 
     # --- tempo2 fit
     #     CHECK: does mean removal affect the answer?
