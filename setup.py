@@ -5,6 +5,7 @@ import sys, os
 from distutils.core import setup
 from distutils.extension import Extension
 from Cython.Build import cythonize
+import subprocess
 
 import numpy
 
@@ -21,9 +22,16 @@ sys.argv = argv_replace
 if tempo2 is None:
     # hmm, you're making things hard, huh? let's try autodetecting in a few likely places
 
+    import subprocess
+    # Compatibility Python 2/3
+    stdout = subprocess.check_output('which tempo2', shell=True)
+    print(stdout, stdout[:-12])
     try:
-        import subprocess
-        stdout = subprocess.check_output('which tempo2',shell=True)
+        stdout = subprocess.getoutput('which tempo2')
+    except:
+        stdout = subprocess.check_output('which tempo2', shell=True)
+
+    try:
         t2exec = [stdout[:-12]]     # remove /bin/tempo2
     except:
         t2exec = []
@@ -32,24 +40,27 @@ if tempo2 is None:
     ldpath  = map(lambda s: s[:-4],os.environ['LD_LIBRARY_PATH'].split(':')) if 'LD_LIBRARY_PATH' in os.environ else []
 
     paths = t2exec + virtenv + ldpath + [os.environ['HOME'],'/usr/local','/usr']
-    found = [path for path in paths if os.path.isfile(path + '/include/tempo2.h')]
+    print([(p, type(p)) for p in paths])
+    found = [path for path in paths if os.path.isfile(os.path.join(path, 'include/tempo2.h'))]
     found = list(set(found))    # remove duplicates
 
     if found:
         tempo2 = found[0]
-        print "Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2)
+        print ("Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2))
     else:
         # tempo2 won't be there, but at least it should exist as a directory
         tempo2 = '/usr'
-        print """
+        print ("""
 I have not been able to autodetect the location of the tempo2 headers and
 libraries. Nevertheless, I will proceed with the installation. If you get
 errors, please run setup.py again, but use the option --with-tempo2=...
 to point me to the tempo2 install root (e.g., /usr/local if tempo2.h is
 in /usr/local/include).
-"""
+""")
 
-setup(name = 'libstempo',
+print("TRYTRY", tempo2, os.path.join(tempo2,'include'))
+print("TRYTRY", tempo2, os.path.join(tempo2,'lib'))
+setup(name = 'libstempo_mat',
       version = '1.3.2',
       description = 'A Python wrapper for tempo2',
 
@@ -65,7 +76,7 @@ setup(name = 'libstempo',
 
       ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
                                         language="c++",
-                                        include_dirs = [tempo2 + '/include',numpy.get_include()],
+                                        include_dirs = [os.path.join(tempo2,'include'), numpy.get_include()],
                                         libraries = ['tempo2'],
-                                        library_dirs = [tempo2 + '/lib']))
+                                        library_dirs = [os.path.join(tempo2,'lib')]))
       )

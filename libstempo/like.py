@@ -1,3 +1,6 @@
+from __future__ import (absolute_import, unicode_literals, division,
+                        print_function)
+
 import sys, math, types, re
 import numpy as N, scipy.linalg as SL, scipy.special as SS
 
@@ -31,23 +34,23 @@ def _setuprednoise(pulsar,components=10):
 
 def _quantize(times,dt=1):
     isort = N.argsort(times)
-    
+
     bucket_ref = [times[isort[0]]]
     bucket_ind = [[isort[0]]]
-    
+
     for i in isort[1:]:
         if times[i] - bucket_ref[-1] < dt:
             bucket_ind[-1].append(i)
         else:
             bucket_ref.append(times[i])
             bucket_ind.append([i])
-    
+
     t = N.array([N.mean(times[l]) for l in bucket_ind],'d')
-    
+
     U = N.zeros((len(times),len(bucket_ind)),'d')
     for i,l in enumerate(bucket_ind):
         U[l,i] = 1
-    
+
     return t, U
 
 class Mask(object):
@@ -85,7 +88,7 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
     parameters in pulsar.fitpars, using an M-matrix formulation.
     """
 
-    mask = Mask(pulsar,usedeleted)    
+    mask = Mask(pulsar,usedeleted)
 
     err = 1.0e-6 * mask(pulsar.toaerrs)
     Cdiag = (efac*err)**2
@@ -124,14 +127,14 @@ def loglike(pulsar,efac=1.0,equad=None,jitter=None,Ared=None,gammared=None,margi
     if marginalize:
         M = mask(pulsar.designmatrix())
         res = mask(N.array(pulsar.residuals(updatebats=False),'d'))
-        
+
         CinvM = N.dot(Cinv,M)
         A = dot(M.T,CinvM)
 
         invA = N.linalg.inv(A)
         CinvMres = dot(res,CinvM)
 
-        ret = -0.5 * dot(res,Cinv,res) + 0.5 * dot(CinvMres,invA,CinvMres.T) 
+        ret = -0.5 * dot(res,Cinv,res) + 0.5 * dot(CinvMres,invA,CinvMres.T)
 
         if normalize:
             ret = ret - 0.5 * logCdet - 0.5 * N.linalg.slogdet(A)[1] - 0.5 * (M.shape[0] - M.shape[1]) * math.log(2.0*math.pi)
@@ -206,10 +209,10 @@ class tempopar(str):
     def map(self,x):
         try:
             y0, y1 = self.range
-            
+
             return y0 + x * (y1 - y0)
         except AttributeError:
-            raise AttributeError, '[ERROR] libstempo.like.tempopar.map: range is undefined for parameter {0}.'.format(self)
+            raise AttributeError('[ERROR] libstempo.like.tempopar.map: range is undefined for parameter {0}.'.format(self))
 
     @property
     def range(self):
@@ -232,9 +235,9 @@ class tempopar(str):
     def checkpriorvsrange(self):
         # compare range and prior
         if (hasattr(self,'range') and hasattr(self,'prior') and isinstance(self.prior,(tuple,list))
-                                  and (self.prior[0] > self.range[0] + getattr(self,'offset',0) or 
+                                  and (self.prior[0] > self.range[0] + getattr(self,'offset',0) or
                                        self.prior[1] < self.range[1] + getattr(self,'offset',0)    ) ):
-            print '[WARNING] libstempo.like.range: prior {0} is narrower than range {1}.'.format(self.prior,self.range)
+            print('[WARNING] libstempo.like.range: prior {0} is narrower than range {1}.'.format(self.prior,self.range))
 
 
 def expandranges(parlist):
@@ -256,7 +259,7 @@ def expandranges(parlist):
             # if number1 begins with 0s, number parameters as 00, 01, 02, ...,
             # otherwise go with 0, 1, 2, ...
             fmt = '{{0}}{{1:0{0}d}}'.format(len(number1)) if number1[0] == '0' else '{0}{1:d}'
-            
+
             ret = ret + [fmt.format(root,i) for i in range(int(m.group(2)),int(m.group(3))+1)]
 
     return ret
@@ -300,7 +303,7 @@ class Prior(dict):
 
             if par in standardpriors:
                 self[par].prior = standardpriors[par]
-            
+
             if par in standardmaps:
                 self[par].map = standardmaps[par]
 
@@ -328,11 +331,11 @@ class Prior(dict):
                           dtype=[('offset','f16')])
 
     def report(self):
-        print
-        print "==== libstempo.like.Prior report ===="
-        print "  Search        parameters: {0}".format(' '.join(_findrange(self.searchpars)))
-        print "  Marginalized  parameters: {0}".format(' '.join(_findrange(self.fitpars)))
-        print "  Other set     parameters: {0}".format(' '.join(_findrange(self.setpars)))
+        print()
+        print("==== libstempo.like.Prior report ====")
+        print("  Search        parameters: {0}".format(' '.join(_findrange(self.searchpars))))
+        print("  Marginalized  parameters: {0}".format(' '.join(_findrange(self.fitpars))))
+        print("  Other set     parameters: {0}".format(' '.join(_findrange(self.setpars))))
 
         ranges = []
         for par in self.searchpars:
@@ -350,7 +353,7 @@ class Prior(dict):
             elif hasattr(self[par],'prior'):
                 priors.append(str(self[par].prior))
             else:
-                priors.append('')            
+                priors.append('')
 
         offsets = []
         for par in self.searchpars:
@@ -363,18 +366,18 @@ class Prior(dict):
         # eventually we'll make this into a separate function to handle avgs + vars, etc.
         lens = [max(6,max(map(len,l))) for l in [self.searchpars,ranges,priors,offsets]]
 
-        print "  Search ranges and priors:"
+        print("  Search ranges and priors:")
         line = '    {{0:{0}s}} | {{1:{1}s}} | {{2:{2}s}} | {{3:{3}s}}'.format(*lens)
-        print line.format('PAR','RANGE','PRIOR','OFFSET')
+        print(line.format('PAR','RANGE','PRIOR','OFFSET'))
         for p in zip(self.searchpars,ranges,priors,offsets):
-            print line.format(*p)
+            print(line.format(*p))
 
-        print
+        print()
 
     # as is, this is a "cube" prior suitable for multinest integration
     # it takes transformed parameters, so offsets don't matter
     def prior(self,pardict):
-        # reconstruct a dictionary if we're given a sequence 
+        # reconstruct a dictionary if we're given a sequence
         if not isinstance(pardict,dict):
             pardict = {par: pardict[i] for (i,par) in enumerate(self.searchpars)}
 
@@ -471,19 +474,19 @@ def _formatval(val,err,showerr=True):
 
     # general case: set the precision of the value at the magnitude of the error
     prec = int(math.floor(math.log10(abs(val))) - math.floor(math.log10(abs(err))) + 1)
-    
+
     # format the value (can't use format() for N.longdouble), then grab the mantissa and exponent
     str1 = '%+.*e' % (prec,val)
     mantissa, exponent = str1.split('e')
     exponent = int(exponent)
 
-    # interject the error, with two digits of precision, if requested    
+    # interject the error, with two digits of precision, if requested
     # need to do business with sign because format() does not honor '+' and zero-padding together
     if showerr:
         errstr = int(abs(err) / (10**(exponent - prec)) + 0.5)
         return '{0}({1})e{2}{3:02d}'.format(mantissa,errstr,'-' if exponent < 0 else '+',abs(exponent))
     else:
-        return '{0}e{1}{2:02d}'.format(mantissa,'-' if exponent < 0 else '+',abs(exponent))        
+        return '{0}e{1}{2:02d}'.format(mantissa,'-' if exponent < 0 else '+',abs(exponent))
 
 
 import contextlib
@@ -516,9 +519,9 @@ class Loglike(object):
             else:
                 # these are the "real" tempo2 parameters
                 if par not in self.psr:
-                    raise KeyError, "[ERROR] libstempo.like.Loglike: parameter {0} unknown.".format(par)
+                    raise KeyError("[ERROR] libstempo.like.Loglike: parameter {0} unknown.".format(par))
                 elif self.psr[par].fit == True:
-                    raise ValueError, "[ERROR] libstempo.like.Loglike: trying to set marginalized parameter {0}.".format(par)
+                    raise ValueError("[ERROR] libstempo.like.Loglike: trying to set marginalized parameter {0}.".format(par))
                 else:
                     self.pars.append(par)
 
@@ -532,7 +535,7 @@ class Loglike(object):
             self.err2 = [(1.0e-6 * (self.psr.flags['sys'] == sys))**2 for sys in self.sysflags]
 
             if N.any([not hasattr(self,efacpar) for efacpar in self.efacpars]):
-                raise KeyError, "[ERROR] libstempo.like.Loglike: when multiefac=True, you need to fit (log){0}--{1}.".format(self.efacpars[0],self.efacpars[-1])
+                raise KeyError("[ERROR] libstempo.like.Loglike: when multiefac=True, you need to fit (log){0}--{1}.".format(self.efacpars[0],self.efacpars[-1]))
         else:
             self.err2 = (1.0e-6 * self.psr.toaerrs)**2
 
@@ -569,7 +572,7 @@ class Loglike(object):
         return self.loglike(pardict)
 
     def loglike(self,pardict):
-        # reconstruct a dictionary if we're given a sequence 
+        # reconstruct a dictionary if we're given a sequence
         if not isinstance(pardict,dict):
             pardict = {par: pardict[i] for (i,par) in enumerate(self.searchpars)}
 
@@ -641,15 +644,15 @@ class Loglike(object):
             ratio  = [('%.1e'  % (data[par].err/data.tempo[par].err)) for par in self.searchpars]
             fdelta = [('%+.1e' % ((data[par].val-data.tempo[par].val)/data.tempo[par].err)) for par in self.searchpars]
 
-        print
-        print "==== libstempo.like.Loglike report ===="
+        print()
+        print("==== libstempo.like.Loglike report ====")
 
         lens = [max(6,max(map(len,l))) for l in [self.searchpars,tempo,mcmc,delta,ratio,fdelta]]
 
-        print "  Tempo2 ML values and MCMC conditional means:"
+        print("  Tempo2 ML values and MCMC conditional means:")
         line = '    {{0:{0}s}} | {{1:{1}s}} | {{2:{2}s}} | {{3:{3}s}} | {{4:{4}s}} | {{5:{5}s}}'.format(*lens)
-        print line.format('PAR','TEMPO2','MCMC','DIFF','ERAT','BIAS')
+        print(line.format('PAR','TEMPO2','MCMC','DIFF','ERAT','BIAS'))
         for p in zip(self.searchpars,tempo,mcmc,delta,ratio,fdelta):
-            print line.format(*p)
+            print(line.format(*p))
 
-        print
+        print()

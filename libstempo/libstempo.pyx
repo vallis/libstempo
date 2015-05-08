@@ -21,7 +21,7 @@ except ImportError:
 
 from libc cimport stdlib, stdio
 from cython cimport view
-
+import six
 import numpy
 cimport numpy
 
@@ -232,7 +232,7 @@ map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELA
 cdef create_tempopar(parameter par,int subct,int eclCoord):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
-    newpar.name = str(par.shortlabel[subct])
+    newpar.name = par.shortlabel[subct].decode()
 
     if newpar.name in ['RAJ','DECJ','PMRA','PMDEC'] and eclCoord == 1:
         newpar.name = map_coords[newpar.name]
@@ -345,7 +345,7 @@ cdef class GWB:
                 res[i] = res[i] + calculateResidualGW(kp,&self.gw[k],obstime,dist)
 
         res[:] = res[:] - numpy.mean(res)
-        
+
         pulsar.stoas[:] += res[:] / 86400.0
 
     def gw_dist(self):
@@ -366,7 +366,7 @@ cdef class GWB:
 # but all attributes must be defined in the code
 
 def tempo2version():
-    return StrictVersion(TEMPO2_VERSION.split()[1])
+    return StrictVersion(TEMPO2_VERSION.decode().split()[1])
 
 cdef class tempopulsar:
     cpdef object parfile
@@ -390,7 +390,7 @@ cdef class tempopulsar:
         # initialize
 
         global MAX_PSR, MAX_OBSN
-
+        parfile = six.b(parfile)
         self.npsr = 1
 
         # to save memory, only allocate space for this many pulsars and observations
@@ -405,6 +405,7 @@ cdef class tempopulsar:
         # tim rewriting is not needed with tempo2/readTimfile.C >= 1.22 (date: 2014/06/12 02:25:54),
         # which follows relative paths; closest tempo2.h version is 1.90 (date: 2014/06/24 20:03:34)
         if tempo2version() >= StrictVersion("1.90"):
+            timfile = six.b(timfile)
             self._readfiles(parfile,timfile)
         else:
             timfile = rewritetim(timfile)
@@ -514,19 +515,19 @@ cdef class tempopulsar:
 
         for i in range(self.nobs):
             for j in range(self.psr[0].obsn[i].nFlags):
-                flag = self.psr[0].obsn[i].flagID[j][1:]
+                flag = self.psr[0].obsn[i].flagID[j][1:].decode()
 
                 if flag not in self.allflags:
                     self.allflags.append(flag)
                     # the maximum flag-value length is hard-set in tempo2.h
                     self.flags[flag] = numpy.zeros(self.nobs,dtype='a32')
 
-                self.flags[flag][i] = self.psr[0].obsn[i].flagVal[j]
+                self.flags[flag][i] = self.psr[0].obsn[i].flagVal[j].decode()
 
     # TO DO: possibly set the name?
     property name:
         def __get__(self):
-            return self.psr[0].name
+            return self.psr[0].name.decode()
 
     def __getitem__(self,key):
         return self.pardict[key]
@@ -919,6 +920,7 @@ cdef class tempopulsar:
         if not parfile:
             parfile = self.parfile
 
+        parfile = six.b(parfile)
         stdio.sprintf(parFile,"%s",<char *>parfile)
 
         # void textOutput(pulsar *psr,int npsr,
@@ -939,6 +941,8 @@ cdef class tempopulsar:
 
         if not timfile:
             timfile = self.timfile
+
+        timfile = six.b(timfile)
 
         stdio.sprintf(timFile,"%s",<char *>timfile)
 
@@ -978,7 +982,7 @@ def rewritetim(timfile):
     for line in open(timfile,'r').readlines():
         if 'INCLUDE' in line:
             m = re.match('([ #]*INCLUDE) *(.*)',line)
-            
+
             if m:
                 out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)))
             else:

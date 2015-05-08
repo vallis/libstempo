@@ -1,4 +1,5 @@
-from __future__ import absolute_import, unicode_literals, print_function
+from __future__ import (absolute_import, unicode_literals, division,
+                        print_function)
 
 import os, re, math
 from ctypes import *
@@ -161,7 +162,7 @@ def run(LogLikelihood,
                 return -N.inf
 
             prior = pprior * Prior.prior(pars)
-    
+
             return -N.inf if not prior else math.log(prior) + LogLikelihood.loglike(pars)
     else:
         def loglike(cube,ndim,nparams,nullcontext):
@@ -218,7 +219,7 @@ def _findfiles(multinestrun,dirname,suffix='-post_equal_weights.dat'):
     # try chains/multinestrun-...
     #     chains/multinestrun/multinestrun-...
     root = [dirname + '/',dirname + '/' + multinestrun]
-    
+
     # and if multinestrun is something like pulsar-model,
     # try chains/pulsar/model/pulsar-model-...
     if '-' in multinestrun:
@@ -257,7 +258,7 @@ def _getmeta(ret,filename):
 
         if 'ml' in meta.dtype.names:
             ret[par].ml = meta['ml'][i]
-        else:   
+        else:
             ret[par].ml = ret.data[ml,i] + (meta['offset'][i] if 'offset' in meta.dtype.names else 0)
 
         ret.tempo[par] = multinestpar()
