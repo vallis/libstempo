@@ -1,19 +1,23 @@
-from __future__ import division
-from __future__ import print_function
+# per Matteo's pull request
+# from . import libstempo
+# from . import spharmORFbasis as anis
+# from .libstempo import GWB
+
+from __future__ import division, print_function
 
 import math, os
 
 import numpy as N, scipy.interpolate as interp
 
-import libstempo
-import spharmORFbasis as anis
+from . import libstempo
+from . import spharmORFbasis as anis
 
 try:
     import ephem
 except:
     print("Warning: cannot find the ephem package, needed for createGWB.")
 
-from libstempo import GWB
+from libstempo.libstempo import GWB
 
 day = 24 * 3600
 year = 365.25 * day

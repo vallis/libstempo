@@ -40,7 +40,7 @@ def dchisq(psr,formbats=False,renormalize=True):
     
     return dr
 
-def findmin(psr,method='Nelder-Mead',history=False,formbats=False,renormalize=True,**kwargs):
+def findmin(psr,method='Nelder-Mead',history=False,formbats=False,renormalize=True,bounds={},**kwargs):
     """Use scipy.optimize.minimize to find minimum-chisq timing solution,
     passing through all extra options. Resets psr[...].val to the final solution,
     and returns the final chisq. Will use chisq gradient if method requires it.
@@ -51,15 +51,21 @@ def findmin(psr,method='Nelder-Mead',history=False,formbats=False,renormalize=Tr
     # to avoid losing precision, we're searching in units of parameter errors
     
     if numpy.any(err == 0.0):
-        raise ValueError("One or more fit parameters have zero a priori error, which this function uses to rescale search parameters.")
+        print("Warning: one or more fit parameters have zero a priori error, and won't be searched.")
 
-    h = []
+    hloc, hval = [], []
 
     def func(xs):
         psr.vals([c + x*e for x,c,e in zip(xs,ctr,err)])
-        if history: h.append(psr.vals())
 
         ret = chisq(psr,formbats=formbats)
+
+        if numpy.isnan(ret):
+            print("Warning: chisq is nan at {0}.".format(psr.vals()))
+
+        if history:
+            hloc.append(psr.vals())
+            hval.append(ret)
 
         return ret
 
@@ -67,22 +73,30 @@ def findmin(psr,method='Nelder-Mead',history=False,formbats=False,renormalize=Tr
         psr.vals([c + x*e for x,c,e in zip(xs,ctr,err)])
 
         dc = dchisq(psr,formbats=formbats,renormalize=renormalize)
-        ret = numpy.array([d*e for d,e in zip(dc,err)])
+        ret = numpy.array([d*e for d,e in zip(dc,err)],'d')
 
         return ret
 
     opts = kwargs.copy()
+
     if method not in ['Nelder-Mead','Powell']:
         opts['jac'] = dfunc
 
+    if method in ['L-BFGS-B']:
+        opts['bounds'] = [(float((bounds[par][0] - ctr[i])/err[i]),
+                           float((bounds[par][1] - ctr[i])/err[i])) if par in bounds else (None,None)
+                          for i,par in enumerate(psr.pars())]
+
     res = scipy.optimize.minimize(func,[0.0]*len(ctr),method=method,**opts)
-    print(res.message)
+
+    if hasattr(res,'message'):
+        print(res.message)
 
     # this will also set parameters to the minloc
     minchisq = func(res.x)
 
     if history:
-        return minchisq, numpy.array(h)
+        return minchisq, numpy.array(hval), numpy.array(hloc)
     else:       
         return minchisq
 

@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# matteo: use subprocess.getoutput if available
+#         use os.path.join instead of +
+
 from __future__ import print_function
 
 import sys, os
@@ -25,9 +28,9 @@ if tempo2 is None:
 
     try:
         import subprocess
-        stdout = subprocess.check_output('which tempo2',shell=True)
-        t2exec = [str(stdout[:-12])]     # remove /bin/tempo2
-                                         # note that subprocess.STDOUT yields bytes in Python 3
+        stdout = subprocess.check_output('which tempo2',shell=True).decode()
+        t2exec = [stdout[:-12]]     # remove /bin/tempo2
+                                    # may fail if there are strange bytes
     except:
         t2exec = []
 
