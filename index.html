@@ -34,10 +34,15 @@
 
         <h3>Requirements</h3>
         <ul>
-            <li>Python 2.7 (no Python 3 yet...)</li>
+            <li>Python 2.7 or 3.4</li>
             <li><a href="http://www.numpy.org/">numpy</a></li>
-            <li><a href="http://www.atnf.csiro.au/research/pulsar/tempo2/">tempo2</a>, of course (current version 2013.9.1)</li>
+            <li><a href="http://www.atnf.csiro.au/research/pulsar/tempo2/">tempo2</a>, of course</li>
         </ul>
+
+        <h3>Important note</h3>
+        <p>The master branch now refers to versions 2.X of libstempo. The API has changed
+        substantially (for the better) from versions 1.X. If you need the older 1.X API,
+        check out the libstempo1 branch, or install an older version with <a href="https://pypi.python.org/simple/libstempo">pip</a>.</p>
 
         <h3>Installation</h3>
         <ul>
@@ -45,14 +50,14 @@
             <li>If you have problems, it's probably because libstempo cannot find the tempo2 C headers and library. The installer will look in likely places, but you can also give it the tempo2 installation directory (i.e., the directory that contains <code>include/tempo2.h</code> and <code>lib/libtempo2.a</code>) by writing <code>pip install libstempo --install-option="--with-tempo2=..."</code>.</li>
             <li>Otherwise, grab the git repository and do <code>python setup.py install --prefix=...</code>, to install where you prefer. Again you can use <code>--with-tempo2=...</code> to point the installer to the tempo2 install location.</li>
             <li>If <code>import libstempo</code> fails at runtime, complaining that it cannot find <code>libtempo2.so</code>, you need to set the environment variable <code>LD_LIBRARY_PATH</code> to the directory that contains <code>libtempo2.so</code>.</li>
-            <li>Since 2014/10/23, the <code>master</code> branch supports both the latest <code>tempo2</code> release, and the latest CVS. (Or at least the changes that the maintainers are aware of. Open a ticket if you find a problem.)</li> 
+            <li>Since 2014/10/23, libstempo2 supports both the latest <code>tempo2</code> release, and the latest CVS. (Or at least the changes that the maintainers are aware of. Open a ticket if you find a problem.)</li> 
         </ul>
 
         <h3>Tutorials</h3>
         <p><i>In lieu</i> of documentation, since showing is better than telling.</p>
         <ul>
-            <li><a href="libstempo-demo.html">basic operation</a> (<a href="libstempo-demo.ipynb">ipynb source</a>)</li>
-            <li><a href="libstempo-toasim-demo.html">simulating residuals</a> (<a href="libstempo-toasim-demo.ipynb">ipynb source</a>)</li>
+            <li><a href="https://github.com/vallis/libstempo/blob/master/demo/libstempo-demo.ipynb">basic operation</a></li>
+            <li><a href="https://github.com/vallis/libstempo/blob/master/demo/libstempo-toasim-demo.ipynb">simulating residuals</a></li>
         </ul>
       </section>
       <footer>
