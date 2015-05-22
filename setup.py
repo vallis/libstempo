@@ -13,6 +13,11 @@ from Cython.Build import cythonize
 
 import numpy
 
+print("""WARNING: The libstempo API has changed substantially (for the better) from
+         versions 1.X to 2.X. If you need the older 1.X API, you can get an older libstempo
+         from https://pypi.python.org/simple/libstempo, or checkout out the libstempo1
+         branch on GitHub - https://github.com/vallis/libstempo/tree/libstempo1""")
+
 tempo2 = None
 
 argv_replace = []
