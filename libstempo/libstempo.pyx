@@ -230,7 +230,10 @@ map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELA
 cdef create_tempopar(parameter par,int subct,int eclCoord):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
-    newpar.name = par.shortlabel[subct].decode('ascii')
+    try:
+        newpar.name = par.shortlabel[subct].decode()
+    except UnicodeDecodeError:
+        newpar.name = ''
 
     if newpar.name in ['RAJ','DECJ','PMRA','PMDEC'] and eclCoord == 1:
         newpar.name = map_coords[newpar.name]
