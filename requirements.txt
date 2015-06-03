@@ -1,2 +1,2 @@
 numpy
-Cython>=0.18
+Cython>=0.22
