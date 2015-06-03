@@ -11,6 +11,7 @@ import numpy as N, scipy.interpolate as interp
 
 from . import libstempo
 from . import spharmORFbasis as anis
+from . import eccUtils as eu
 
 try:
     import ephem
@@ -23,7 +24,8 @@ day = 24 * 3600
 year = 365.25 * day
 DMk = 4.15e3           # Units MHz^2 cm^3 pc sec
 
-def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True):
+def add_gwb(psr, dist=1, ngw=1000, seed=None, flow=1e-8, fhigh=1e-5,
+            gwAmp=1e-20, alpha=-0.66, logspacing=True):
     """Add a stochastic background from inspiraling binaries, using the tempo2
     code that underlies the GWbkgrd plugin.
 
@@ -48,8 +50,10 @@ def add_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha
 
     return gwb
 
-def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20, alpha=-0.66, \
-        logspacing=True, dipoleamps=None, dipoledir=None, dipolemag=None):
+def add_dipole_gwb(psr, dist=1, ngw=1000, seed=None, flow=1e-8,
+                   fhigh=1e-5, gwAmp=1e-20,  alpha=-0.66,
+                   logspacing=True, dipoleamps=None, 
+                   dipoledir=None, dipolemag=None):
         
     """Add a stochastic background from inspiraling binaries distributed
     according to a pure dipole distribution, using the tempo2
@@ -79,7 +83,8 @@ def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-2
     Returns the GWB object
     """
 
-    gwb = GWB(ngw,seed,flow,fhigh,gwAmp,alpha,logspacing,dipoleamps,dipoledir,dipolemag)
+    gwb = GWB(ngw, seed, flow, fhigh, gwAmp, alpha, logspacing,
+              dipoleamps, dipoledir, dipolemag)
     gwb.add_gwb(psr,dist)
     
     return gwb
@@ -87,7 +92,8 @@ def add_dipole_gwb(psr,dist=1,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-2
 def _geti(x,i):
     return x[i] if isinstance(x,(tuple,list,N.ndarray)) else x
 
-def fakepulsar(parfile,obstimes,toaerr,freq=1440.0,observatory='AXIS',flags='',iters=3):
+def fakepulsar(parfile, obstimes, toaerr, freq=1440.0, observatory='AXIS',
+               flags='', iters=3):
     """Returns a libstempo tempopulsar object corresponding to a noiseless set
     of observations for the pulsar specified in 'parfile', with observations
     happening at times (MJD) given in the array (or list) 'obstimes', with
@@ -139,23 +145,56 @@ def make_ideal(psr):
     psr.stoas[:] -= psr.residuals() / 86400.0
     psr.fit()
 
-def add_efac(psr,efac=1.0,seed=None):
+def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
     """Add nominal TOA errors, multiplied by `efac` factor.
     Optionally take a pseudorandom-number-generator seed."""
     
     if seed is not None:
         N.random.seed(seed)
 
-    psr.stoas[:] += efac * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
+    # default efacvec
+    efacvec = N.ones(psr.nobs)
 
-def add_equad(psr,equad,seed=None):
+    # check that efac is scalar if flags is None
+    if flags is None:
+        if not N.isscalar(efac):
+            raise ValueError('ERROR: If flags is None, efac must be a scalar')
+        else:
+            efacvec = N.ones(psr.nobs) * efac
+
+    if flags is not None and flagid is not None and not N.isscalar(efac):
+        if len(efac) == len(flags):
+            for ct, flag in enumerate(flags):
+                ind = flag == N.array(psr.flags[flagid])
+                efacvec[ind] = efac[ct]
+
+    psr.stoas[:] += efacvec * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
+
+def add_equad(psr, equad, flagid=None, flags=None, seed=None):
     """Add quadrature noise of rms `equad` [s].
     Optionally take a pseudorandom-number-generator seed."""
 
     if seed is not None:
         N.random.seed(seed)
     
-    psr.stoas[:] += (equad / day) * N.random.randn(psr.nobs)
+    # default equadvec
+    equadvec = N.zeros(psr.nobs)
+
+    # check that equad is scalar if flags is None
+    if flags is None:
+        if not N.isscalar(equad):
+            raise ValueError('ERROR: If flags is None, equad must be a scalar') 
+        else:
+            equadvec = N.ones(psr.nobs) * equad
+
+    if flags is not None and flagid is not None and not N.isscalar(equad):
+        if len(equad) == len(flags):
+            for ct, flag in enumerate(flags):
+                ind = flag == N.array(psr.flags[flagid])
+                equadvec[ind] = equad[ct]
+    
+    psr.stoas[:] += (equadvec / day) * N.random.randn(psr.nobs)
+
 
 def quantize(times,dt=1):
     bins    = N.arange(N.min(times),N.max(times)+dt,dt)
@@ -202,16 +241,40 @@ def quantize_fast(times,dt=1):
 # t2, U2 = quantize_fast(N.array(psr.toas(),'d'),dt=1)
 # print N.sum((t - t2)**2), N.all(U == U2)
 
-def add_jitter(psr,equad,coarsegrain=0.1,seed=None):
-    """Add correlated quadrature noise of rms `equad` [s],
+def add_jitter(psr, ecorr ,flagid=None, flags=None, coarsegrain=0.1,
+               seed=None):
+    """Add correlated quadrature noise of rms `ecorr` [s],
     with coarse-graining time `coarsegrain` [days].
     Optionally take a pseudorandom-number-generator seed."""
     
     if seed is not None:
         N.random.seed(seed)
+    
+    if flags is None:
+        t, U = quantize_fast(N.array(psr.toas(),'d'), dt=coarsegrain)
+    elif flags is not None and flagid is not None:
+        t, f, U = quantize_fast(N.array(psr.toas(),'d'),
+                                N.array(psr.flags[flagid]),
+                                dt=coarsegrain)
 
-    t, U = quantize_fast(N.array(psr.toas(),'d'),0.1)
-    psr.stoas[:] += (equad / day) * N.dot(U,N.random.randn(U.shape[1]))
+    # default jitter value
+    ecorrvec = N.zeros(len(t))
+    
+    # check that jitter is scalar if flags is None
+    if flags is None:
+        if not N.isscalar(ecorr):
+            raise ValueError('ERROR: If flags is None, jitter must be a scalar')
+        else:
+            ecorrvec = N.ones(len(t)) * ecorr
+
+    if flags is not None and flagid is not None and not N.isscalar(ecorr):
+        if len(ecorr) == len(flags):
+            for ct, flag in enumerate(flags):
+                ind = flag == N.array(f)
+                ecorrvec[ind] = ecorr[ct]
+
+    psr.stoas[:] += (1 / day) * N.dot(U*ecorrvec, N.random.randn(U.shape[1]))
+
 
 def add_rednoise(psr,A,gamma,components=10,seed=None):
     """Add red noise with P(f) = A^2 / (12 pi^2) (f year)^-gamma,
@@ -290,21 +353,22 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     Function to create GW-induced residuals from a SMBMB as 
     defined in Ellis et. al 2012,2013. Tries to be smart about it...
 
-    @param psr: pulsar object
-    @param gwtheta: Polar angle of GW source in celestial coords [radians]
-    @param gwphi: Azimuthal angle of GW source in celestial coords [radians]
-    @param mc: Chirp mass of SMBMB [solar masses]
-    @param dist: Luminosity distance to SMBMB [Mpc]
-    @param fgw: Frequency of GW (twice the orbital frequency) [Hz]
-    @param phase0: Initial Phase of GW source [radians]
-    @param psi: Polarization of GW source [radians]
-    @param inc: Inclination of GW source [radians]
-    @param pdist: Pulsar distance to use other than those in psr [kpc]
-    @param pphase: Use pulsar phase to determine distance [radian]
-    @param psrTerm: Option to include pulsar term [boolean] 
-    @param evolve: Option to exclude evolution [boolean]
+    :param psr: pulsar object
+    :param gwtheta: Polar angle of GW source in celestial coords [radians]
+    :param gwphi: Azimuthal angle of GW source in celestial coords [radians]
+    :param mc: Chirp mass of SMBMB [solar masses]
+    :param dist: Luminosity distance to SMBMB [Mpc]
+    :param fgw: Frequency of GW (twice the orbital frequency) [Hz]
+    :param phase0: Initial Phase of GW source [radians]
+    :param psi: Polarization of GW source [radians]
+    :param inc: Inclination of GW source [radians]
+    :param pdist: Pulsar distance to use other than those in psr [kpc]
+    :param pphase: Use pulsar phase to determine distance [radian]
+    :param psrTerm: Option to include pulsar term [boolean] 
+    :param evolve: Option to exclude evolution [boolean]
+    :param tref: Fidicuial time at which initial parameters are referenced
 
-    @return: Vector of induced residuals
+    :returns: Vector of induced residuals
     """
 
     # convert units
@@ -346,12 +410,11 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
 
 
     # get values from pulsar object
-    toas = psr.toas().copy()*86400 - tref
+    toas = psr.toas()*86400 - tref
     if pphase is not None:
         pd = pphase/(2*N.pi*fgw*(1-cosMu)) / 1.0267e11
     else:
         pd = pdist
-    
 
     # convert units
     pd *= 1.0267e11   # convert from kpc to seconds
@@ -416,28 +479,159 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
         res = -fplus*rplus - fcross*rcross
 
     psr.stoas[:] += res/86400
+
+
+def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
+                e0, l0, q, nmax=400, pd=None, psrTerm=True,
+                tref=0, check=True):
+    """
+    Simulate GW from eccentric SMBHB. Waveform models from
+    Taylor et al. (2015) and Barack and Cutler (2004).
+
+    WARNING: This residual waveform is only accurate if the
+    GW frequency is not significantly evolving over the 
+    observation time of the pulsar.
+
+    :param psr: pulsar object
+    :param gwtheta: Polar angle of GW source in celestial coords [radians]
+    :param gwphi: Azimuthal angle of GW source in celestial coords [radians]
+    :param mc: Chirp mass of SMBMB [solar masses]
+    :param dist: Luminosity distance to SMBMB [Mpc]
+    :param F: Orbital frequency of SMBHB [Hz]
+    :param inc: Inclination of GW source [radians]
+    :param psi: Polarization of GW source [radians]
+    :param gamma0: Initial angle of periastron [radians]
+    :param e0: Initial eccentricity of SMBHB
+    :param l0: Initial mean anomoly [radians]
+    :param q: Mass ratio of SMBHB
+    :param nmax: Number of harmonics to use in waveform decomposition
+    :param pd: Pulsar distance [kpc]
+    :param psrTerm: Option to include pulsar term [boolean] 
+    :param tref: Fidicuial time at which initial parameters are referenced [s]
+    :param check: Check if frequency evolves significantly over obs. time
+
+    :returns: Vector of induced residuals
+    """
     
-def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False, \
-                    clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1, power=1, npts=600, howml=10):
+    # define variable for later use
+    cosgwtheta, cosgwphi = N.cos(gwtheta), N.cos(gwphi)
+    singwtheta, singwphi = N.sin(gwtheta), N.sin(gwphi)
+    sin2psi, cos2psi = N.sin(2*psi), N.cos(2*psi)
+    incfac1, incfac2 = -0.5*(3+N.cos(2*inc)), 2*N.cos(inc)
+
+    # unit vectors to GW source
+    m = N.array([-singwphi, cosgwphi, 0.0])
+    n = N.array([-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta])
+    omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
+    
+    # pulsar location
+    ptheta = N.pi/2 - psr['DECJ'].val
+    pphi = psr['RAJ'].val
+
+    # use definition from Sesana et al 2010 and Ellis et al 2012
+    phat = N.array([N.sin(ptheta)*N.cos(pphi), N.sin(ptheta)*N.sin(pphi),\
+            N.cos(ptheta)])
+
+    fplus = 0.5 * (N.dot(m, phat)**2 - N.dot(n, phat)**2) / (1+N.dot(omhat, phat))
+    fcross = (N.dot(m, phat)*N.dot(n, phat)) / (1 + N.dot(omhat, phat))
+    cosMu = -N.dot(omhat, phat)
+
+    # get values from pulsar object
+    toas = N.double(psr.toas())*86400 - tref
+
+    # convert units
+    pd *= 1.0267e11   # convert from kpc to seconds
+    
+    # get pulsar time
+    tp = toas - pd * (1-cosMu)
+    
+    if check:
+        # check that frequency is not evolving significantly over obs. time
+        y = eu.solve_coupled_ecc_solution(F, e0, gamma0, l0, mc, q,
+                                          N.array([toas.min(),toas.max()]))
+        
+        # initial and final values over observation time
+        Fc0, ec0, gc0, phic0 = y[0,:]
+        Fc1, ec1, gc1, phic1 = y[-1,:]
+
+        # observation time
+        Tobs = 1/(toas.max()-toas.min())
+
+        if N.abs(Fc0-Fc1) > 1/Tobs:
+            print('WARNING: Frequency is evolving over more than one frequency bin.')
+            print('F0 = {0}, F1 = {1}, delta f = {2}'.format(Fc0, Fc1, 1/Tobs))
+    
+    # get gammadot for earth term
+    gammadot = eu.get_gammadot(F, mc, q, e0)
+    
+    ##### earth term #####
+    siter = eu.calculate_splus_scross(nmax, mc, dist, F, e0, toas,
+                                      l0, gamma0, gammadot, inc)
+    
+    splus, scross = 0, 0
+    for splus_n, scross_n in siter:
+        splus += splus_n
+        scross += scross_n
+    
+    ##### pulsar term #####
+    if psrTerm:
+
+        # solve coupled system of equations to get pulsar term values
+        y = eu.solve_coupled_ecc_solution(F, e0, gamma0, l0, mc, q,
+                                          N.array([toas.min(),tp.min()]))
+        
+        # get pulsar term values
+        if N.any(y):
+            Fp, ep, gp, phip = y[-1,:]
+            
+            # get gammadot at pulsar term
+            gammadotp = eu.get_gammadot(Fp, mc, q, ep)
+
+            # get linear phase approximation
+            lp = phip + Fp * toas
+
+            siterp = eu.calculate_splus_scross(nmax, mc, dist, Fp, ep, toas,
+                                               lp, gamma0, gammadot, inc)
+
+            splusp, scrossp = 0, 0
+            for splus_n, scross_n in siterp:
+                splusp += splus_n
+                scrossp += scross_n
+
+            rr = fplus * ((splusp-splus)*cos2psi - (scrossp-scross)*sin2psi) + \
+                    fcross * ((splusp-splus)*sin2psi + (scrossp-scross)*cos2psi)
+        else:
+            rr = N.zeros(len(p.toas))
+            
+    else:
+        rr = fplus * ((-splus)*cos2psi + (scross)*sin2psi) + \
+                fcross * ((-splus)*sin2psi + (-scross)*cos2psi)
+         
+    psr.stoas[:] += rr/86400
+    
+
+def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
+              clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1,
+              power=1, npts=600, howml=10):
     """
     Function to create GW-induced residuals from a stochastic GWB as defined
     in Chamberlin, Creighton, Demorest, et al. (2014).
     
-    @param psr: pulsar object for single pulsar
-    @param Amp: Amplitude of red noise in GW units
-    @param gam: Red noise power law spectral index
-    @param noCorr: Add red noise with no spatial correlations
-    @param seed: Random number seed
-    @param turnover: Produce spectrum with turnover at frequency f0
-    @param clm: coefficients of spherical harmonic decomposition of GW power
-    @param lmax: maximum multipole of GW power decomposition
-    @param f0: Frequency of spectrum turnover
-    @param beta: Spectral index of power spectram for f << f0
-    @param power: Fudge factor for flatness of spectrum turnover
-    @param npts: Number of points used in interpolation
-    @param howml: Lowest frequency is 1/(howml * T) 
+    :param psr: pulsar object for single pulsar
+    :param Amp: Amplitude of red noise in GW units
+    :param gam: Red noise power law spectral index
+    :param noCorr: Add red noise with no spatial correlations
+    :param seed: Random number seed
+    :param turnover: Produce spectrum with turnover at frequency f0
+    :param clm: coefficients of spherical harmonic decomposition of GW power
+    :param lmax: maximum multipole of GW power decomposition
+    :param f0: Frequency of spectrum turnover
+    :param beta: Spectral index of power spectram for f << f0
+    :param power: Fudge factor for flatness of spectrum turnover
+    :param npts: Number of points used in interpolation
+    :param howml: Lowest frequency is 1/(howml * T) 
     
-    @return: list of residuals for each pulsar    
+    :returns: list of residuals for each pulsar    
     """
 
     if seed is not None:
@@ -538,9 +732,9 @@ def computeORFMatrix(psr):
     """
     Compute ORF matrix.
 
-    @param psr: List of pulsar object instances
+    :param psr: List of pulsar object instances
 
-    @return: Matrix that has the ORF values for every pulsar
+    :returns: Matrix that has the ORF values for every pulsar
              pair with 2 on the diagonals to account for the 
              pulsar term.
 
