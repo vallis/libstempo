@@ -9,6 +9,8 @@ include libstempo/like.py
 include libstempo/multinest.py
 include libstempo/plot.py
 include libstempo/toasim.py
+include libstempo/eccUtils.py
+include libstempo/spharmORFbasis.py
 include demo/libstempo-demo.ipynb
 include demo/libstempo-toasim-demo.ipynb
 include libstempo/data/B1953+29_NANOGrav_dfg+12.par

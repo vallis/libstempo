@@ -62,7 +62,7 @@ in /usr/local/include).
 """)
 
 setup(name = 'libstempo',
-      version = '2.2.2', # remember to change it in __init__.py
+      version = '2.2.3', # remember to change it in __init__.py
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
