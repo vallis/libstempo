@@ -16,7 +16,30 @@ Relevant References are:
 from __future__ import division
 import numpy as np
 import scipy.special as ss
+import scipy.constants as sc
 from scipy.integrate import odeint
+from scipy.interpolate import interp1d
+from pkg_resources import resource_filename, Requirement
+
+SOLAR2S = sc.G / sc.c**3 * 1.98855e30
+KPC2S = sc.parsec / sc.c * 1e3
+MPC2S = sc.parsec / sc.c * 1e6
+
+def make_ecc_interpolant():
+    """
+    Make interpolation function from eccentricity file to
+    determine number of harmonics to use for a given
+    eccentricity.
+
+    :returns: interpolant
+    """
+    pth = resource_filename(Requirement.parse('libstempo'),
+                            'libstempo/ecc_vs_nharm.txt')
+
+    fil = np.loadtxt(pth)
+
+    return interp1d(fil[:,0], fil[:,1])
+
 
 
 def get_edot(F, mc, e):
@@ -32,7 +55,7 @@ def get_edot(F, mc, e):
     """
 
     # chirp mass
-    mc *= 4.9e-6
+    mc *= SOLAR2S
 
     dedt = -304/(15*mc) * (2*np.pi*mc*F)**(8/3) * e * \
         (1 + 121/304*e**2) / ((1-e**2)**(5/2))
@@ -52,7 +75,7 @@ def get_Fdot(F, mc, e):
     """
 
     # chirp mass
-    mc *= 4.9e-6
+    mc *= SOLAR2S
 
     dFdt = 48 / (5*np.pi*mc**2) * (2*np.pi*mc*F)**(11/3) * \
         (1 + 73/24*e**2 + 37/96*e**4) / ((1-e**2)**(7/2))
@@ -73,7 +96,7 @@ def get_gammadot(F, mc, q, e):
     """
 
     # chirp mass
-    mc *= 4.9e-6
+    mc *= SOLAR2S
 
     #total mass
     m = (((1+q)**2)/q)**(3/5) * mc
@@ -107,16 +130,13 @@ def get_coupled_ecc_eqns(y, t, mc, q):
     gamma = y[2]
     phase = y[3]
     
-    # chirp mass
-    mc *= 4.9e-6
-    
     #total mass
     m = (((1+q)**2)/q)**(3/5) * mc    
     
     dFdt = get_Fdot(F, mc, e)
     dedt = get_edot(F, mc, e)
     dgdt = get_gammadot(F, mc, q, e)
-    dphasedt = F
+    dphasedt = 2*np.pi*F
      
     return np.array([dFdt, dedt, dgdt, dphasedt])
 
@@ -165,8 +185,8 @@ def get_an(n, mc, dl, F, e, t, l0):
     """
     
     # convert to seconds
-    mc *= 4.9e-6
-    dl *= 1.0267e14
+    mc *= SOLAR2S
+    dl *= MPC2S
     
     omega = 2 * np.pi * F
     
@@ -195,8 +215,8 @@ def get_bn(n, mc, dl, F, e, t, l0):
     """
     
     # convert to seconds
-    mc *= 4.9e-6
-    dl *= 1.0267e14
+    mc *= SOLAR2S
+    dl *= MPC2S
     
     omega = 2 * np.pi * F
     
@@ -224,8 +244,8 @@ def get_cn(n, mc, dl, F, e, t, l0):
     """
     
     # convert to seconds
-    mc *= 4.9e-6
-    dl *= 1.0267e14
+    mc *= SOLAR2S
+    dl *= MPC2S
     
     omega = 2 * np.pi * F
     

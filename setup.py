@@ -7,8 +7,9 @@ from __future__ import print_function
 
 import sys, os
 
-from distutils.core import setup
-from distutils.extension import Extension
+from setuptools import setup
+from setuptools import Extension
+#from distutils.extension import Extension
 from Cython.Build import cythonize
 
 import numpy
@@ -70,9 +71,11 @@ setup(name = 'libstempo',
 
       packages = ['libstempo'],
       package_dir = {'libstempo': 'libstempo'},
-      package_data = {'libstempo': ['data/*']},
+      package_data = {'libstempo': ['data/*', 'ecc_vs_nharm.txt']},
 
-      py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee','libstempo.plot','libstempo.toasim','libstempo.spharmORFbasis'],
+      py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee',
+                    'libstempo.plot','libstempo.toasim',
+                    'libstempo.spharmORFbasis', 'libstempo.eccUtils'],
 
       ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
                                         language="c++",

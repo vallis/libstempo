@@ -7,7 +7,9 @@ from __future__ import division, print_function, absolute_import
 
 import math, os
 
-import numpy as N, scipy.interpolate as interp
+import numpy as N
+import scipy.interpolate as interp
+import scipy.constants as sc
 
 from . import libstempo
 from . import spharmORFbasis as anis
@@ -20,9 +22,15 @@ except:
 
 from libstempo.libstempo import GWB
 
+# get interpolant for eccentric binaries
+ecc_interp = eu.make_ecc_interpolant()
+
 day = 24 * 3600
 year = 365.25 * day
 DMk = 4.15e3           # Units MHz^2 cm^3 pc sec
+SOLAR2S = sc.G / sc.c**3 * 1.98855e30
+KPC2S = sc.parsec / sc.c * 1e3
+MPC2S = sc.parsec / sc.c * 1e6
 
 def add_gwb(psr, dist=1, ngw=1000, seed=None, flow=1e-8, fhigh=1e-5,
             gwAmp=1e-20, alpha=-0.66, logspacing=True):
@@ -372,8 +380,8 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     """
 
     # convert units
-    mc *= 4.9e-6         # convert from solar masses to seconds
-    dist *= 1.0267e14    # convert from Mpc to seconds
+    mc *= SOLAR2S         # convert from solar masses to seconds
+    dist *= MPC2S    # convert from Mpc to seconds
 
     # define initial orbital frequency 
     w0 = N.pi * fgw
@@ -412,12 +420,12 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     # get values from pulsar object
     toas = psr.toas()*86400 - tref
     if pphase is not None:
-        pd = pphase/(2*N.pi*fgw*(1-cosMu)) / 1.0267e11
+        pd = pphase/(2*N.pi*fgw*(1-cosMu)) / KPC2S
     else:
         pd = pdist
 
     # convert units
-    pd *= 1.0267e11   # convert from kpc to seconds
+    pd *= KPC2S   # convert from kpc to seconds
     
     # get pulsar time
     tp = toas-pd*(1-cosMu)
@@ -482,8 +490,8 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
 
 
 def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
-                e0, l0, q, nmax=400, pd=None, psrTerm=True,
-                tref=0, check=True):
+                e0, l0, q, nmax=100, pd=None, psrTerm=True,
+                tref=0, check=True, useFile=True):
     """
     Simulate GW from eccentric SMBHB. Waveform models from
     Taylor et al. (2015) and Barack and Cutler (2004).
@@ -509,6 +517,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     :param psrTerm: Option to include pulsar term [boolean] 
     :param tref: Fidicuial time at which initial parameters are referenced [s]
     :param check: Check if frequency evolves significantly over obs. time
+    :param useFile: Use pre-computed table of number of harmonics vs eccentricity
 
     :returns: Vector of induced residuals
     """
@@ -517,10 +526,9 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     cosgwtheta, cosgwphi = N.cos(gwtheta), N.cos(gwphi)
     singwtheta, singwphi = N.sin(gwtheta), N.sin(gwphi)
     sin2psi, cos2psi = N.sin(2*psi), N.cos(2*psi)
-    incfac1, incfac2 = -0.5*(3+N.cos(2*inc)), 2*N.cos(inc)
 
     # unit vectors to GW source
-    m = N.array([-singwphi, cosgwphi, 0.0])
+    m = N.array([singwphi, -cosgwphi, 0.0])
     n = N.array([-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta])
     omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
     
@@ -540,7 +548,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     toas = N.double(psr.toas())*86400 - tref
 
     # convert units
-    pd *= 1.0267e11   # convert from kpc to seconds
+    pd *= KPC2S   # convert from kpc to seconds
     
     # get pulsar time
     tp = toas - pd * (1-cosMu)
@@ -548,7 +556,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     if check:
         # check that frequency is not evolving significantly over obs. time
         y = eu.solve_coupled_ecc_solution(F, e0, gamma0, l0, mc, q,
-                                          N.array([toas.min(),toas.max()]))
+                                          N.array([0.0,toas.max()]))
         
         # initial and final values over observation time
         Fc0, ec0, gc0, phic0 = y[0,:]
@@ -563,9 +571,19 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     
     # get gammadot for earth term
     gammadot = eu.get_gammadot(F, mc, q, e0)
+
+    if useFile:
+        if e0 > 0.001 and e0 < 0.999:
+            nharm = min(int(ecc_interp(e0)), nmax)
+        elif e0 < 0.001:
+            nharm = 2
+        else:
+            nharm = nmax
+    else:
+        nharm = nmax
     
     ##### earth term #####
-    siter = eu.calculate_splus_scross(nmax, mc, dist, F, e0, toas,
+    siter = eu.calculate_splus_scross(nharm, mc, dist, F, e0, toas,
                                       l0, gamma0, gammadot, inc)
     
     splus, scross = 0, 0
@@ -578,34 +596,43 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
 
         # solve coupled system of equations to get pulsar term values
         y = eu.solve_coupled_ecc_solution(F, e0, gamma0, l0, mc, q,
-                                          N.array([toas.min(),tp.min()]))
+                                          N.array([0.0, tp.min()]))
         
         # get pulsar term values
         if N.any(y):
-            Fp, ep, gp, phip = y[-1,:]
-            
+            Fp, ep, gp, lp = y[-1,:]
+
             # get gammadot at pulsar term
             gammadotp = eu.get_gammadot(Fp, mc, q, ep)
 
-            # get linear phase approximation
-            lp = phip + Fp * toas
+            if useFile:
+                if ep > 0.001 and ep < 0.999:
+                    nharm = min(int(ecc_interp(ep)), nmax)
+                elif ep < 0.001:
+                    nharm = 2
+                else:
+                    nharm = nmax
+            else:
+                nharm = nmax
 
-            siterp = eu.calculate_splus_scross(nmax, mc, dist, Fp, ep, toas,
-                                               lp, gamma0, gammadot, inc)
+
+            siterp = eu.calculate_splus_scross(nharm, mc, dist, Fp, ep, toas,
+                                               lp, gp, gammadotp, inc)
 
             splusp, scrossp = 0, 0
             for splus_n, scross_n in siterp:
                 splusp += splus_n
                 scrossp += scross_n
 
-            rr = fplus * ((splusp-splus)*cos2psi - (scrossp-scross)*sin2psi) + \
-                    fcross * ((splusp-splus)*sin2psi + (scrossp-scross)*cos2psi)
+            rr = (fplus*cos2psi - fcross*sin2psi) * (splusp - splus) + \
+                    (fplus*sin2psi + fcross*cos2psi) * (scrossp - scross)
+
         else:
             rr = N.zeros(len(p.toas))
             
     else:
-        rr = fplus * ((-splus)*cos2psi + (scross)*sin2psi) + \
-                fcross * ((-splus)*sin2psi + (-scross)*cos2psi)
+        rr = - (fplus*cos2psi - fcross*sin2psi) * splus - \
+                (fplus*sin2psi + fcross*cos2psi) * scross
          
     psr.stoas[:] += rr/86400
     
