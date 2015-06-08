@@ -168,7 +168,7 @@ def solve_coupled_ecc_solution(F0, e0, gamma0, phase0, mc, q, t):
     
     return ret
 
-def get_an(n, mc, dl, F, e, t, l0):
+def get_an(n, mc, dl, F, e):
     """
     Compute a_n from Eq. 22 of Taylor et al. (2015).
     
@@ -177,8 +177,6 @@ def get_an(n, mc, dl, F, e, t, l0):
     :param dl: Luminosity distance [Mpc]
     :param F: Orbital frequency of binary [Hz]
     :param e: Orbital Eccentricity
-    :param t: Time [s]
-    :param l0: Initial mean anomoly [rad]
     
     :returns: a_n
     
@@ -190,15 +188,15 @@ def get_an(n, mc, dl, F, e, t, l0):
     
     omega = 2 * np.pi * F
     
-    amp = mc**(5/3) / ( dl * omega**(1/3) )
+    amp = n * mc**(5/3) * omega**(2/3) / dl
     
-    ret = -amp * ((ss.jn(n-2,n*e) - 2*e*ss.jn(n-1,n*e) +
+    ret = -amp * (ss.jn(n-2,n*e) - 2*e*ss.jn(n-1,n*e) +
                   (2/n)*ss.jn(n,n*e) + 2*e*ss.jn(n+1,n*e) -
-                  ss.jn(n+2,n*e)) * np.sin(n*omega*t + n*l0))
+                  ss.jn(n+2,n*e))
 
     return ret
 
-def get_bn(n, mc, dl, F, e, t, l0):
+def get_bn(n, mc, dl, F, e):
     """
     Compute b_n from Eq. 22 of Taylor et al. (2015).
     
@@ -207,8 +205,6 @@ def get_bn(n, mc, dl, F, e, t, l0):
     :param dl: Luminosity distance [Mpc]
     :param F: Orbital frequency of binary [Hz]
     :param e: Orbital Eccentricity
-    :param t: Time [s]
-    :param l0: Initial mean anomoly [rad]
     
     :returns: b_n
     
@@ -216,18 +212,18 @@ def get_bn(n, mc, dl, F, e, t, l0):
     
     # convert to seconds
     mc *= SOLAR2S
-    dl *= MPC2S
+    dl *= MPC2S 
     
     omega = 2 * np.pi * F
     
-    amp = mc**(5/3) / ( dl * omega**(1/3) )
-    
-    ret = amp * np.sqrt(1-e**2) *((ss.jn(n-2,n*e) - 2*ss.jn(n,n*e) +
-                  ss.jn(n+2,n*e)) * np.cos(n*omega*t + n*l0))
+    amp = n * mc**(5/3) * omega**(2/3) / dl
+        
+    ret = -amp * np.sqrt(1-e**2) *(ss.jn(n-2,n*e) - 2*ss.jn(n,n*e) +
+                  ss.jn(n+2,n*e)) 
 
     return ret
 
-def get_cn(n, mc, dl, F, e, t, l0):
+def get_cn(n, mc, dl, F, e):
     """
     Compute c_n from Eq. 22 of Taylor et al. (2015).
     
@@ -236,8 +232,6 @@ def get_cn(n, mc, dl, F, e, t, l0):
     :param dl: Luminosity distance [Mpc]
     :param F: Orbital frequency of binary [Hz]
     :param e: Orbital Eccentricity
-    :param t: Time [s]
-    :param l0: Initial mean anomoly [rad]
     
     :returns: c_n
     
@@ -249,26 +243,58 @@ def get_cn(n, mc, dl, F, e, t, l0):
     
     omega = 2 * np.pi * F
     
-    amp = mc**(5/3) / ( dl * omega**(1/3) )
-    
-    ret = amp * (2/n) * (ss.jn(n,n*e) * np.sin(n*omega*t + n*l0))
+    amp = 2 * mc**(5/3) * omega**(2/3) / dl
+     
+    ret = amp * ss.jn(n,n*e) 
 
     return ret
+    
 
 def calculate_splus_scross(nmax, mc, dl, F, e, t, l0, gamma, gammadot, inc):
+    """
+    Calculate splus and scross for each harmonic n as a generator. 
+    This waveform differs slightly from that in Taylor et al (2015) 
+    in that it includes the time dependence of the advance of periastron.
     
+    :param nmax: Total number of harmonics to use
+    :param mc: Chirp mass of binary [Solar Mass]
+    :param dl: Luminosity distance [Mpc]
+    :param F: Orbital frequency of binary [Hz]
+    :param e: Orbital Eccentricity
+    :param t: TOAs [s]
+    :param l0: Initial eccentric anomoly [rad]
+    :param gamma: Angle of periastron advance [rad]
+    :param gammadot: Time derivative of angle of periastron advance [rad/s]
+    :param inc: Inclination angle [rad]
+
+    """ 
     for n in range(1, nmax):
-        
+
         # time dependent amplitudes
-        an = get_an(n, mc, dl, F, e, t, l0)
-        bn = get_bn(n, mc, dl, F, e, t, l0)
-        cn = get_cn(n, mc, dl, F, e, t, l0)
+        an = get_an(n, mc, dl, F, e)
+        bn = get_bn(n, mc, dl, F, e)
+        cn = get_cn(n, mc, dl, F, e)
 
-        # time dependent gamma
+        # time dependent terms
+        omega = 2*np.pi*F
         gt = gamma + gammadot * t
+        lt = l0 + omega * t
+        
+        # intermediate terms
+        sp = np.sin(n*lt-2*gt)/(n*omega-2*gammadot) + \
+                np.sin(n*lt+gt)/(n*omega+2*gammadot)
+        sm = np.sin(n*lt-2*gt)/(n*omega-2*gammadot) - \
+                np.sin(n*lt+gt)/(n*omega+2*gammadot)
+        cp = np.cos(n*lt-2*gt)/(n*omega-2*gammadot) + \
+                np.cos(n*lt+gt)/(n*omega+2*gammadot)
+        cm = np.cos(n*lt-2*gt)/(n*omega-2*gammadot) - \
+                np.cos(n*lt+gt)/(n*omega+2*gammadot)
+        
 
-        splus_n = -(1+np.cos(inc)**2) * (an * np.cos(2*gt) - bn * \
-                                         np.sin(2*gt)) + (1-np.cos(inc)**2) * cn
-        scross_n = 2 * np.cos(inc) * (bn * np.cos(2*gt) + an * np.sin(2*gt))
+        splus_n = -0.5 * (1+np.cos(inc)**2) * (an*sp - bn*sm) + \
+                (1-np.cos(inc)**2)*cn * np.cos(n*lt)
+        scross_n = np.cos(inc) * (an*cm - bn*cp)
+            
 
         yield splus_n, scross_n
+        

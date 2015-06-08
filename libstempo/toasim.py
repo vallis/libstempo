@@ -28,9 +28,6 @@ ecc_interp = eu.make_ecc_interpolant()
 day = 24 * 3600
 year = 365.25 * day
 DMk = 4.15e3           # Units MHz^2 cm^3 pc sec
-SOLAR2S = sc.G / sc.c**3 * 1.98855e30
-KPC2S = sc.parsec / sc.c * 1e3
-MPC2S = sc.parsec / sc.c * 1e6
 
 def add_gwb(psr, dist=1, ngw=1000, seed=None, flow=1e-8, fhigh=1e-5,
             gwAmp=1e-20, alpha=-0.66, logspacing=True):
@@ -380,8 +377,8 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     """
 
     # convert units
-    mc *= SOLAR2S         # convert from solar masses to seconds
-    dist *= MPC2S    # convert from Mpc to seconds
+    mc *= eu.SOLAR2S         # convert from solar masses to seconds
+    dist *= eu.MPC2S    # convert from Mpc to seconds
 
     # define initial orbital frequency 
     w0 = N.pi * fgw
@@ -392,10 +389,10 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     cosgwtheta, cosgwphi = N.cos(gwtheta), N.cos(gwphi)
     singwtheta, singwphi = N.sin(gwtheta), N.sin(gwphi)
     sin2psi, cos2psi = N.sin(2*psi), N.cos(2*psi)
-    incfac1, incfac2 = -0.5*(3+N.cos(2*inc)), 2*N.cos(inc)
+    incfac1, incfac2 = 0.5*(3+N.cos(2*inc)), 2*N.cos(inc)
 
     # unit vectors to GW source
-    m = N.array([-singwphi, cosgwphi, 0.0])
+    m = N.array([singwphi, -cosgwphi, 0.0])
     n = N.array([-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta])
     omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
 
@@ -420,12 +417,12 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     # get values from pulsar object
     toas = psr.toas()*86400 - tref
     if pphase is not None:
-        pd = pphase/(2*N.pi*fgw*(1-cosMu)) / KPC2S
+        pd = pphase/(2*N.pi*fgw*(1-cosMu)) / eu.KPC2S
     else:
         pd = pdist
 
     # convert units
-    pd *= KPC2S   # convert from kpc to seconds
+    pd *= eu.KPC2S   # convert from kpc to seconds
     
     # get pulsar time
     tp = toas-pd*(1-cosMu)
@@ -475,10 +472,10 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     alpha_p = fac3 / omega_p**(1/3)
 
     # define rplus and rcross
-    rplus = alpha * (At*cos2psi - Bt*sin2psi)
-    rcross = alpha * (At*sin2psi + Bt*cos2psi)
-    rplus_p = alpha_p * (At_p*cos2psi - Bt_p*sin2psi)
-    rcross_p = alpha_p * (At_p*sin2psi + Bt_p*cos2psi)
+    rplus = alpha * (At*cos2psi + Bt*sin2psi)
+    rcross = alpha * (-At*sin2psi + Bt*cos2psi)
+    rplus_p = alpha_p * (At_p*cos2psi + Bt_p*sin2psi)
+    rcross_p = alpha_p * (-At_p*sin2psi + Bt_p*cos2psi)
 
     # residuals
     if psrTerm:
@@ -548,7 +545,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     toas = N.double(psr.toas())*86400 - tref
 
     # convert units
-    pd *= KPC2S   # convert from kpc to seconds
+    pd *= eu.KPC2S   # convert from kpc to seconds
     
     # get pulsar time
     tp = toas - pd * (1-cosMu)
