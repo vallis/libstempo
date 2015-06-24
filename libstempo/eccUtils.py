@@ -248,11 +248,10 @@ def get_cn(n, mc, dl, F, e):
     ret = amp * ss.jn(n,n*e) 
 
     return ret
-    
 
 def calculate_splus_scross(nmax, mc, dl, F, e, t, l0, gamma, gammadot, inc):
     """
-    Calculate splus and scross for each harmonic n as a generator. 
+    Calculate splus and scross summed over all harmonics. 
     This waveform differs slightly from that in Taylor et al (2015) 
     in that it includes the time dependence of the advance of periastron.
     
@@ -268,33 +267,39 @@ def calculate_splus_scross(nmax, mc, dl, F, e, t, l0, gamma, gammadot, inc):
     :param inc: Inclination angle [rad]
 
     """ 
-    for n in range(1, nmax):
+    
+    n = np.arange(1, nmax)
 
-        # time dependent amplitudes
-        an = get_an(n, mc, dl, F, e)
-        bn = get_bn(n, mc, dl, F, e)
-        cn = get_cn(n, mc, dl, F, e)
+    # time dependent amplitudes
+    an = get_an(n, mc, dl, F, e)
+    bn = get_bn(n, mc, dl, F, e)
+    cn = get_cn(n, mc, dl, F, e)
 
-        # time dependent terms
-        omega = 2*np.pi*F
-        gt = gamma + gammadot * t
-        lt = l0 + omega * t
+    # time dependent terms
+    omega = 2*np.pi*F
+    gt = gamma + gammadot * t
+    lt = l0 + omega * t
+
+    # tiled phase
+    phase1 = n * np.tile(lt, (nmax-1,1)).T
+    phase2 = np.tile(gt, (nmax-1,1)).T
+    phasep = phase1 + 2*phase2
+    phasem = phase1 - 2*phase2
+
+    # intermediate terms
+    sp = np.sin(phasem)/(n*omega-2*gammadot) + \
+            np.sin(phasep)/(n*omega+2*gammadot)
+    sm = np.sin(phasem)/(n*omega-2*gammadot) - \
+            np.sin(phasep)/(n*omega+2*gammadot)
+    cp = np.cos(phasem)/(n*omega-2*gammadot) + \
+            np.cos(phasep)/(n*omega+2*gammadot)
+    cm = np.cos(phasem)/(n*omega-2*gammadot) - \
+            np.cos(phasep)/(n*omega+2*gammadot)
+    
+
+    splus_n = -0.5 * (1+np.cos(inc)**2) * (an*sp - bn*sm) + \
+            (1-np.cos(inc)**2)*cn * np.cos(phase1)
+    scross_n = np.cos(inc) * (an*cm - bn*cp)
         
-        # intermediate terms
-        sp = np.sin(n*lt-2*gt)/(n*omega-2*gammadot) + \
-                np.sin(n*lt+gt)/(n*omega+2*gammadot)
-        sm = np.sin(n*lt-2*gt)/(n*omega-2*gammadot) - \
-                np.sin(n*lt+gt)/(n*omega+2*gammadot)
-        cp = np.cos(n*lt-2*gt)/(n*omega-2*gammadot) + \
-                np.cos(n*lt+gt)/(n*omega+2*gammadot)
-        cm = np.cos(n*lt-2*gt)/(n*omega-2*gammadot) - \
-                np.cos(n*lt+gt)/(n*omega+2*gammadot)
-        
 
-        splus_n = -0.5 * (1+np.cos(inc)**2) * (an*sp - bn*sm) + \
-                (1-np.cos(inc)**2)*cn * np.cos(n*lt)
-        scross_n = np.cos(inc) * (an*cm - bn*cp)
-            
-
-        yield splus_n, scross_n
-        
+    return np.sum(splus_n, axis=1), np.sum(scross_n, axis=1)
