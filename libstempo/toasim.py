@@ -577,9 +577,9 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
 
     if useFile:
         if e0 > 0.001 and e0 < 0.999:
-            nharm = min(int(ecc_interp(e0)), nmax)
+            nharm = min(int(ecc_interp(e0)), nmax) + 1
         elif e0 < 0.001:
-            nharm = 2
+            nharm = 3
         else:
             nharm = nmax
     else:
