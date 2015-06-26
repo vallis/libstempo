@@ -143,6 +143,8 @@ cdef extern from "tempo2.h":
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
         char telID[100]        # telescope ID
         double earth_ssb[6]    # Earth center wrt SSB 
+        double observatory_earth[6]    # Obs wrt Earth center
+        double psrPos[3]       # Unit vector to the pulsar position
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
         long double torb       # Combined binary delay
         long long pulseN       # Pulse number
@@ -827,6 +829,22 @@ cdef class tempopulsar:
             _earth_ssb.strides[1] = sizeof(double)
 
             return numpy.asarray(_earth_ssb)
+
+    property observatory_earth:
+        def __get__(self):
+            cdef double [:,:] _observatory_earth = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].observatory_earth[0])
+            _observatory_earth.strides[0] = sizeof(observation)
+            _observatory_earth.strides[1] = sizeof(double)
+
+            return numpy.asarray(_observatory_earth)
+
+    property psrPos:
+        def __get__(self):
+            cdef double [:,:] _psrPos = <double [:self.nobs,:3]>&(self.psr[0].obsn[0].psrPos[0])
+            _psrPos.strides[0] = sizeof(observation)
+            _psrPos.strides[1] = sizeof(double)
+
+            return numpy.asarray(_psrPos)
 
     property toaerrs:
         """Returns TOA errors in units of microseconds as a numpy.double array.

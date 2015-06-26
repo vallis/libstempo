@@ -170,7 +170,7 @@ def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
     if flags is not None and flagid is not None and not N.isscalar(efac):
         if len(efac) == len(flags):
             for ct, flag in enumerate(flags):
-                ind = flag == N.array(psr.flags[flagid])
+                ind = flag == N.array(psr.flagvals(flagid))
                 efacvec[ind] = efac[ct]
 
     psr.stoas[:] += efacvec * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
@@ -195,7 +195,7 @@ def add_equad(psr, equad, flagid=None, flags=None, seed=None):
     if flags is not None and flagid is not None and not N.isscalar(equad):
         if len(equad) == len(flags):
             for ct, flag in enumerate(flags):
-                ind = flag == N.array(psr.flags[flagid])
+                ind = flag == N.array(psr.flagvals(flagid))
                 equadvec[ind] = equad[ct]
     
     psr.stoas[:] += (equadvec / day) * N.random.randn(psr.nobs)
@@ -220,7 +220,7 @@ def quantize(times,dt=1):
     
     return t, U
 
-def quantize_fast(times,dt=1):
+def quantize_fast(times, flags=None, dt=1.0):
     isort = N.argsort(times)
     
     bucket_ref = [times[isort[0]]]
@@ -233,13 +233,19 @@ def quantize_fast(times,dt=1):
             bucket_ref.append(times[i])
             bucket_ind.append([i])
     
-    t = N.array([N.mean(times[l]) for l in bucket_ind],'d')
+    avetoas = N.array([N.mean(times[l]) for l in bucket_ind],'d')
+    if flags is not None:
+        aveflags = N.array([flags[l[0]] for l in bucket_ind])
     
     U = N.zeros((len(times),len(bucket_ind)),'d')
     for i,l in enumerate(bucket_ind):
         U[l,i] = 1
-    
-    return t, U
+        
+    if flags is not None:
+        return avetoas, aveflags, U
+    else:
+        return avetoas, U
+
 
 # check that the two versions match
 # t, U = quantize(N.array(psr.toas(),'d'),dt=1)
@@ -259,7 +265,7 @@ def add_jitter(psr, ecorr ,flagid=None, flags=None, coarsegrain=0.1,
         t, U = quantize_fast(N.array(psr.toas(),'d'), dt=coarsegrain)
     elif flags is not None and flagid is not None:
         t, f, U = quantize_fast(N.array(psr.toas(),'d'),
-                                N.array(psr.flags[flagid]),
+                                N.array(psr.flagvals(flagid)),
                                 dt=coarsegrain)
 
     # default jitter value
@@ -571,22 +577,17 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
 
     if useFile:
         if e0 > 0.001 and e0 < 0.999:
-            nharm = min(int(ecc_interp(e0)), nmax)
+            nharm = min(int(ecc_interp(e0)), nmax) + 1
         elif e0 < 0.001:
-            nharm = 2
+            nharm = 3
         else:
             nharm = nmax
     else:
         nharm = nmax
     
     ##### earth term #####
-    siter = eu.calculate_splus_scross(nharm, mc, dist, F, e0, toas,
-                                      l0, gamma0, gammadot, inc)
-    
-    splus, scross = 0, 0
-    for splus_n, scross_n in siter:
-        splus += splus_n
-        scross += scross_n
+    splus, scross = eu.calculate_splus_scross(nharm, mc, dist, F, e0, toas,
+                                              l0, gamma0, gammadot, inc)
     
     ##### pulsar term #####
     if psrTerm:
@@ -613,13 +614,9 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
                 nharm = nmax
 
 
-            siterp = eu.calculate_splus_scross(nharm, mc, dist, Fp, ep, toas,
-                                               lp, gp, gammadotp, inc)
-
-            splusp, scrossp = 0, 0
-            for splus_n, scross_n in siterp:
-                splusp += splus_n
-                scrossp += scross_n
+            splusp, scrossp = eu.calculate_splus_scross(nharm, mc, dist, Fp,
+                                                        ep, toas, lp, gp,
+                                                        gammadotp, inc)
 
             rr = (fplus*cos2psi - fcross*sin2psi) * (splusp - splus) + \
                     (fplus*sin2psi + fcross*cos2psi) * (scrossp - scross)
