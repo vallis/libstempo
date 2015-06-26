@@ -1,4 +1,4 @@
-import os, math, re, time
+import os, sys, math, re, time
 from distutils.version import StrictVersion
 
 import collections
@@ -6,7 +6,20 @@ import collections
 try:
     from collections import OrderedDict
 except ImportError:
+    # this is for Python 2.6 compatibility, we may be able to drop it
     from ordereddict import OrderedDict
+
+# Python 2/3 compatibility
+
+if sys.version_info[0] < 3:
+    from itertools import izip as zip
+    
+    string = lambda s: s
+    string_dtype = 'S'
+else:
+    # what is the default encoding here?
+    string = lambda s: s.decode()
+    string_dtype = 'U'
 
 # get zip-as-iterator behavior in Python 2
 try:
@@ -19,6 +32,60 @@ from cython cimport view
 
 import numpy
 cimport numpy
+
+try:
+    import astropy.units as u
+    from astropy.units import Quantity
+    from astropy.time import Time
+    import astropy.constants
+    try:
+        import astropy.erfa as erfa
+    except ImportError:
+        import astropy._erfa as erfa
+
+    # missing several parameters; units are discussed in tempo2/initialize.C
+
+    lts = astropy.units.def_unit(['lightsecond','ls','lts'],astropy.constants.c * u.s)
+
+    map_units = {
+                 'F0': u.Hz,'F1': u.Hz/u.s,'F2': u.Hz/u.s**2, 
+                 'RAJ': u.rad,'DECJ': u.rad,'ELONG': u.deg,'ELAT': u.deg,
+                 'PMRA': u.mas / u.yr,'PMDEC': u.mas / u.yr,'PMELONG': u.mas / u.yr,'PMELAT': u.mas / u.yr,
+                 'PX': u.mas,
+                 'PB': u.d,'ECC': u.dimensionless_unscaled,'A1': lts,'OM': u.deg,
+                 'EPS1': u.dimensionless_unscaled,'EPS2': u.dimensionless_unscaled,
+                 # KOM, KIN?
+                 'SHAPMAX': u.dimensionless_unscaled,'OMDOT': u.deg/u.yr,
+                 # PBDOT?
+                 'ECCDOT': 1/u.s,'A1DOT': lts/u.s,'GAMMA': u.s,
+                 # XPBDOT?
+                 # EPS1DOT, EPS2DOT?
+                 'MTOT': u.Msun,'M2': u.Msun,
+                 # DTHETA, XOMDOT
+                 'SIN1': u.dimensionless_unscaled,
+                 # DR, A0, B0, BP, BPP, AFAC
+                 'DM': u.cm**-3 * u.pc,'DM1': u.cm**-3 * u.pc * u.yr**-1, # how many should we do?
+                 'POSEPOCH': u.day,'T0': u.day,'TASC': u.day
+                 }
+
+    map_times = ['POSEPOCH','T0','TASC']
+except:
+    print("Warning: cannot find astropy, units support will not be available.")
+
+from functools import wraps
+
+# return numpy array as astropy table with unit
+def dimensionfy(unit):
+    def dimensionfy_decorator(func):
+        def dimensionfy_wrapper(*args,**kwargs):
+            array = func(*args,**kwargs)
+            
+            if args[0].units:
+                return Quantity(array,unit=unit,copy=False)
+            else:
+                return array
+        return dimensionfy_wrapper
+    return dimensionfy_decorator
 
 cdef extern from "GWsim-stub.h":
     cdef bint HAVE_GWSIM
@@ -103,6 +170,7 @@ cdef extern from "tempo2.h":
         int phaseJumpDir[MAX_JUMPS]       # Size and direction of phase jump
         int nPhaseJump                    # Number of phase jumps
         double rmsPost
+        char clock[16]
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -148,6 +216,9 @@ cdef object get_longdouble_as_scalar(long double v):
 cdef class tempopar:
     cdef public object name
 
+    cdef public object unit
+    cdef public object timescale
+
     cdef int _isjump
     cdef void *_val
     cdef void *_err
@@ -157,14 +228,28 @@ cdef class tempopar:
     def __init__(self,*args,**kwargs):
         raise TypeError("This class cannot be instantiated from Python.")
 
+    def _unitify(self,val):
+        if self.unit:
+            return Quantity(val,unit=self.unit)
+        else:
+            return val
+
     property val:
         def __get__(self):
             if not self._isjump:
-                return get_longdouble_as_scalar((<long double*>self._val)[0])
+                return self._unitify(get_longdouble_as_scalar((<long double*>self._val)[0]))
             else:
-                return float((<double*>self._val)[0])
+                return self._unitify(float((<double*>self._val)[0]))
 
         def __set__(self,value):
+            if self.timescale and isinstance(value,Time):
+                time = getattr(value,self.timescale)
+                value = Quantity(numpy.longdouble(time.jd1 - erfa.DJM0) + numpy.longdouble(time.jd2),
+                                 unit=u.day)
+                value = value.to(self.unit).value
+            elif self.unit and isinstance(value,Quantity):
+                value = value.to(self.unit).value
+
             if not self._isjump:
                 if not self._paramSet[0]:
                     self._paramSet[0] = 1
@@ -172,16 +257,18 @@ cdef class tempopar:
                 set_longdouble(<long double*>self._val,value)
             else:
                 (<double*>self._val)[0] = value
-                # (<double*>self._err)[0] = 0
 
     property err:
         def __get__(self):
             if not self._isjump:
-                return get_longdouble_as_scalar((<long double*>self._err)[0])
+                return self._unitify(get_longdouble_as_scalar((<long double*>self._err)[0]))
             else:
-                return float((<double*>self._err)[0])
+                return self._unitify(float((<double*>self._err)[0]))
 
         def __set__(self,value):
+            if self.unit and isinstance(value,Quantity):
+                value = value.to(self.unit).value
+
             if not self._isjump:
                 set_longdouble(<long double*>self._err,value)
             else:
@@ -228,16 +315,24 @@ cdef class tempopar:
 
 map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELAT'}
 
-cdef create_tempopar(parameter par,int subct,int eclCoord):
+cdef create_tempopar(parameter par,int subct,int eclCoord,object units):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
     try:
-        newpar.name = par.shortlabel[subct].decode()
+        newpar.name = string(par.shortlabel[subct])
     except UnicodeDecodeError:
         newpar.name = ''
 
     if newpar.name in ['RAJ','DECJ','PMRA','PMDEC'] and eclCoord == 1:
         newpar.name = map_coords[newpar.name]
+
+    if units:
+        newpar.unit = map_units.get(newpar.name,u.dimensionless_unscaled)
+        # TO DO: need to find out what tempo2 is using
+        newpar.timescale = 'tcb' if newpar.name in map_times else None
+    else:
+        newpar.unit = None
+        newpar.timescale = None
 
     newpar._isjump = 0
 
@@ -249,8 +344,16 @@ cdef create_tempopar(parameter par,int subct,int eclCoord):
     return newpar
 
 # TODO: note that currently we cannot change the number of jumps programmatically
-cdef create_tempojump(pulsar *psr,int ct):
+cdef create_tempojump(pulsar *psr,int ct,object units):
     cdef tempopar newpar = tempopar.__new__(tempopar)
+
+    # TO DO: proper units
+    if units:
+        newpar.unit = u.dimensionless_unscaled
+        newpar.timescale = None
+    else:
+        newpar.unit = None
+        newpar.timescale = None
 
     newpar.name = 'JUMP{0}'.format(ct)
 
@@ -269,7 +372,7 @@ cdef class GWB:
     cdef int ngw
 
     def __cinit__(self,ngw=1000,seed=None,flow=1e-8,fhigh=1e-5,gwAmp=1e-20,alpha=-0.66,logspacing=True, \
-                    dipoleamps=None,dipoledir=None,dipolemag=None):
+                  dipoleamps=None,dipoledir=None,dipolemag=None):
         self.gw = <gwSrc *>stdlib.malloc(sizeof(gwSrc)*ngw)
         self.ngw = ngw
 
@@ -358,11 +461,13 @@ cdef class GWB:
 # but all attributes must be defined in the code
 
 def tempo2version():
-    return StrictVersion(str(TEMPO2_VERSION).split()[1])
+    return StrictVersion(string(TEMPO2_VERSION).split()[1])
 
 cdef class tempopulsar:
-    cpdef object parfile
-    cpdef object timfile
+    cpdef public object parfile
+    cpdef public object timfile
+
+    cpdef public object units
 
     cdef int npsr           # number of pulsars
     cdef pulsar *psr        # array of pulsar structures
@@ -381,7 +486,7 @@ cdef class tempopulsar:
     cpdef jumpval, jumperr
 
     def __cinit__(self,parfile,timfile=None,warnings=False,fixprefiterrors=True,
-                  dofit=False,maxobs=None):
+                  dofit=False,maxobs=None,units=False):
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -420,6 +525,8 @@ cdef class tempopulsar:
 
         # create parameter proxies
 
+        self.units = units
+
         self.nobs_ = self.psr[0].nobs
         self._readpars(fixprefiterrors=fixprefiterrors)
         self._readflags()
@@ -454,7 +561,7 @@ cdef class tempopulsar:
             else:
                 raise IOError("Cannot find timfile {0}.".format(timfile))
 
-        parfile_bytes, timfile_bytes = parfile.encode('ascii'), timfile.encode('ascii')
+        parfile_bytes, timfile_bytes = parfile.encode(), timfile.encode()
 
         for checkfile in [parfile_bytes,timfile_bytes]:
             if len(checkfile) > MAX_FILELEN - 1:
@@ -478,12 +585,12 @@ cdef class tempopulsar:
                 if fixprefiterrors and not params[ct].fitFlag[subct]:
                     params[ct].prefitErr[subct] = 0
 
-                newpar = create_tempopar(params[ct],subct,self.psr[0].eclCoord)
+                newpar = create_tempopar(params[ct],subct,self.psr[0].eclCoord,self.units)
                 newpar.err = params[ct].prefitErr[subct]
                 self.pardict[newpar.name] = newpar
 
         for ct in range(1,self.psr[0].nJumps+1):  # jump 1 in the array not used...
-            newpar = create_tempojump(&self.psr[0],ct)
+            newpar = create_tempojump(&self.psr[0],ct,self.units)
             self.pardict[newpar.name] = newpar
 
         # the designmatrix plugin also adds extra parameters for sinusoidal whitening
@@ -504,47 +611,71 @@ cdef class tempopulsar:
 
         for i in range(self.nobs):
             for j in range(self.psr[0].obsn[i].nFlags):
-                flag = self.psr[0].obsn[i].flagID[j][1:]
-                flag = flag.decode('ascii')
+                flag = string(self.psr[0].obsn[i].flagID[j][1:])
 
                 if flag not in self.flagnames_:
                     self.flagnames_.append(flag)
                     # the maximum flag-value length is hard-set in tempo2.h
-                    self.flags_[flag] = numpy.zeros(self.nobs,dtype='U' + str(MAX_FLAG_LEN))
+                    self.flags_[flag] = numpy.zeros(self.nobs,dtype=string_dtype + str(MAX_FLAG_LEN))
 
-                flagvalue = self.psr[0].obsn[i].flagVal[j]
-                self.flags_[flag][i] = flagvalue.decode('ascii')
+                self.flags_[flag][i] = string(self.psr[0].obsn[i].flagVal[j])
 
         for flag in self.flags_:
             self.flags_[flag].flags.writeable = False
+
+    def _dimensionfy(self,array,unit):
+        if self.units:
+            return Quantity(array,unit=unit,copy=False)
+        else:
+            return array
+
+    def _setstring(self,char* string,maxlen,value):
+        value_bytes = value.encode()
+
+        if len(value_bytes) < maxlen:
+            stdio.sprintf(string,"%s",<char *>value_bytes)
+        else:
+            raise ValueError
 
     property name:
         """Get or set pulsar name."""
 
         def __get__(self):
-            return self.psr[0].name.decode('ascii')
+            return string(self.psr[0].name)
 
         def __set__(self,value):
-            name_bytes = value.encode('ascii')
+            # this is OK in both Python 2 and 3
+            name_bytes = value.encode()
 
             if len(name_bytes) < 100:
                 stdio.sprintf(self.psr[0].name,"%s",<char *>name_bytes)
             else:
                 raise ValueError
 
+    # TO DO: see if setting works
     property binarymodel:
         """Get or set pulsar binary model."""
 
         def __get__(self):
-            return self.psr[0].binaryModel.decode('ascii')
+            return string(self.psr[0].binaryModel)
 
         def __set__(self,value):
-            model_bytes = value.encode('ascii')
+            model_bytes = value.encode()
 
             if len(model_bytes) < 100:    
                 stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>model_bytes)
             else:
                 raise ValueError
+
+    # TO DO: see if setting works
+    property clock:
+        """Get or set pulsar binary model."""
+
+        def __get__(self):
+            return string(self.psr[0].clock)
+
+        def __set__(self,value):
+            self._setstring(self.psr[0].clock,16,value)
 
     excludepars = ['START','FINISH']
 
@@ -607,7 +738,7 @@ cdef class tempopulsar:
 
         Values to be set can be passed as a numpy array, sequence (in which case they
         are taken to correspond to parameters in the order given by `pars(which=which)`),
-        or dict (in which case which will be ignored).
+        or dict (in which case `which` will be ignored).
 
         Notes:
 
@@ -617,7 +748,10 @@ cdef class tempopulsar:
         - Unlike in earlier libstempo versions, setting a parameter does not set its error to zero."""
         
         if values is None:
-            return numpy.fromiter((self.pardict[par].val for par in self.pars(which)),numpy.longdouble)
+            if self.units:
+                return numpy.array([self.pardict[par].val for par in self.pars(which)],numpy.object)
+            else:
+                return numpy.fromiter((self.pardict[par].val for par in self.pars(which)),numpy.longdouble)
         elif isinstance(values,collections.Mapping):
             for par in values:
                 self.pardict[par].val = values[par]
@@ -633,7 +767,10 @@ cdef class tempopulsar:
         Same as `vals()`, but for parameter errors."""
 
         if values is None:
-            return numpy.fromiter((self.pardict[par].err for par in self.pars(which)),numpy.longdouble)
+            if self.units:
+                return numpy.array([self.pardict[par].err for par in self.pars(which)],numpy.object)
+            else:
+                return numpy.fromiter((self.pardict[par].err for par in self.pars(which)),numpy.longdouble)
         elif isinstance(values,collections.Mapping):
             for par in values:
                 self.pardict[par].err = values[par]
@@ -643,10 +780,23 @@ cdef class tempopulsar:
         else:
             raise TypeError
 
+    def _timeify(self,array):
+        if self.units:
+            if self.clock[:2] == 'TT':
+                timescale = 'tt'  
+            elif self.clock[:3] in ['TAI','UTC']:
+                timescale = self.clock[:3].lower()
+            else:
+                raise NotImplementedError("Cannot recognize tempo2 CLK scale.")
+
+            return Time(array,scale=timescale,format='mjd')
+        else:
+            return array
+
     def toas(self,updatebats=True):
         """tempopulsar.toas()
 
-        Return computed SSB TOAs in units of days as a numpy.longdouble array.
+        Return computed SSB TOAs in MJD as a numpy.longdouble array.
         You get a copy of the current tempo2 array."""
 
         cdef long double [:] _toas = <long double [:self.nobs]>&(self.psr[0].obsn[0].bat)
@@ -655,12 +805,12 @@ cdef class tempopulsar:
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
 
-        return numpy.asarray(_toas).copy()
+        return self._timeify(numpy.asarray(_toas).copy())
 
     # --- data access
     #     CHECK: proper way of doing docstring?
     property stoas:
-        """Return site arrival times in units of days as a numpy.longdouble array.
+        """Return site arrival times in MJD as a numpy.longdouble array.
         You get a view of the original tempo2 data structure, which you can write to."""
 
         def __get__(self):
@@ -669,6 +819,7 @@ cdef class tempopulsar:
 
             return numpy.asarray(_stoas)
 
+    # TO DO: need to dimensionfy as a Table
     property earth_ssb:
         def __get__(self):
             cdef double [:,:] _earth_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].earth_ssb[0])
@@ -685,7 +836,7 @@ cdef class tempopulsar:
             cdef double [:] _toaerrs = <double [:self.nobs]>&(self.psr[0].obsn[0].toaErr)
             _toaerrs.strides[0] = sizeof(observation)
 
-            return numpy.asarray(_toaerrs)
+            return self._dimensionfy(numpy.asarray(_toaerrs),u.us)
 
     # frequencies in MHz (numpy.double array)
     property freqs:
@@ -696,7 +847,7 @@ cdef class tempopulsar:
             cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freq)
             _freqs.strides[0] = sizeof(observation)
 
-            return numpy.asarray(_freqs)
+            return self._dimensionfy(numpy.asarray(_freqs),u.MHz)
 
     # --- SSB frequencies
     #     CHECK: does updateBatsAll update the SSB frequencies?
@@ -711,7 +862,7 @@ cdef class tempopulsar:
 
         updateBatsAll(self.psr,self.npsr)
 
-        return numpy.asarray(_freqs) / 1e6
+        return self._dimensionfy(numpy.asarray(_freqs)/1e6,u.MHz)
 
     property deleted:
         """Return deletion status of individual observations (0 = OK, 1 = deleted)
@@ -759,13 +910,14 @@ cdef class tempopulsar:
         Returns residuals as a numpy.longdouble array (a copy of current values).
         Will update TOAs/recompute residuals if `updatebats`/`formresiduals` is True
         (default for both). Will remove residual mean if `removemean` is True;
-        will remove weighted residual mean if `removemean` is 'weighted'."""
+        first residual if `removemean` is 'first'; weighted residual mean
+        if `removemean` is 'weighted'."""
 
         cdef long double [:] _res = <long double [:self.nobs]>&(self.psr[0].obsn[0].residual)
         _res.strides[0] = sizeof(observation)
 
-        if removemean not in [True,False,'weighted']:
-            raise ValueError("Argument 'removemean' should be True, False, or 'weighted'.")
+        if removemean not in [True,False,'weighted','first']:
+            raise ValueError("Argument 'removemean' should be True, False, 'first', or 'weighted'.")
 
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
@@ -776,8 +928,11 @@ cdef class tempopulsar:
         if removemean is 'weighted':
             err = self.toaerrs
             res -= numpy.sum(res/err**2) / numpy.sum(1/err**2)
+        elif removemean is 'first':
+            # TO DO: what to do if there are deleted points?
+            res -= res[0]
 
-        return res
+        return self._dimensionfy(res,u.s)
 
     def formbats(self):
         formBatsAll(self.psr,self.npsr)    
@@ -788,6 +943,7 @@ cdef class tempopulsar:
     def formresiduals(self,removemean=True):
         formResiduals(self.psr,self.npsr,1 if removemean else 0)    
 
+    # TO DO: proper dimensionfy as a table
     def designmatrix(self,updatebats=True,fixunits=True,fixsigns=True,incoffset=True):
         """tempopulsar.designmatrix(updatebats=True,fixunits=True,incoffset=True)
 
@@ -859,7 +1015,7 @@ cdef class tempopulsar:
 
         ret = numpy.zeros(self.nobs,dtype='a32')
         for i in range(self.nobs):
-            ret[i] = self.psr[0].obsn[i].telID
+            ret[i] = string(self.psr[0].obsn[i].telID)
             if ret[i] in aliases:
                 ret[i] = aliases[ret[i]]
 
@@ -877,6 +1033,7 @@ cdef class tempopulsar:
 
         return numpy.asarray(_torb).copy()
 
+    # TO DO: support setting? 
     def elevation(self):
         """tempopulsar.elevation()
 
@@ -1060,14 +1217,13 @@ cdef class tempopulsar:
     def rms(self,removemean='weighted'):
         """tempopulsar.rms(removemean='weighted')
 
-        Computes the current residual rms, 
-        removing the noise-weighted residual, unless
-        specified otherwise."""
+        Computes the current residual rms, removing the noise-weighted residual
+        unless specified otherwise."""
 
         err = self.toaerrs
         norm = numpy.sum(1.0 / (1e-12 * err * err))
 
-        return math.sqrt(self.chisq(removemean=removemean) / norm)
+        return self._dimensionfy(math.sqrt(self.chisq(removemean=removemean)/norm),u.s)
 
     def savepar(self,parfile):
         """tempopulsar.savepar(parfile)
@@ -1079,7 +1235,7 @@ cdef class tempopulsar:
         if not parfile:
             parfile = self.parfile
 
-        parfile_bytes = parfile.encode('ascii')
+        parfile_bytes = parfile.encode()
 
         if len(parfile_bytes) > MAX_FILELEN - 1:
             raise IOError("Parfile name {0} too long for tempo2!".format(parfile))
@@ -1109,7 +1265,7 @@ cdef class tempopulsar:
         if not timfile:
             timfile = self.timfile
 
-        timfile_bytes = timfile.encode('ascii')
+        timfile_bytes = timfile.encode()
 
         if len(timfile_bytes) > MAX_FILELEN - 1:
             raise IOError("Timfile name {0} too long for tempo2!".format(timfile))
@@ -1144,12 +1300,13 @@ def rewritetim(timfile):
         if 'INCLUDE' in line:
             m = re.match('([ #]*INCLUDE) *(.*)',line)
             
+            # encodes are needed here because file is open in binary mode 
             if m:
-                out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)).encode('ascii'))
+                out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)).encode())
             else:
-                out.write(line.encode('ascii'))
+                out.write(line.encode())
         else:
-            out.write(line.encode('ascii'))
+            out.write(line.encode())
 
     return out.name
 

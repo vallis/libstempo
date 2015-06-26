@@ -507,12 +507,12 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     :param psi: Polarization of GW source [radians]
     :param gamma0: Initial angle of periastron [radians]
     :param e0: Initial eccentricity of SMBHB
-    :param l0: Initial mean anomoly [radians]
+    :param l0: Initial mean anomaly [radians]
     :param q: Mass ratio of SMBHB
     :param nmax: Number of harmonics to use in waveform decomposition
     :param pd: Pulsar distance [kpc]
     :param psrTerm: Option to include pulsar term [boolean] 
-    :param tref: Fidicuial time at which initial parameters are referenced [s]
+    :param tref: Fiducial time at which initial parameters are referenced [s]
     :param check: Check if frequency evolves significantly over obs. time
     :param useFile: Use pre-computed table of number of harmonics vs eccentricity
 
