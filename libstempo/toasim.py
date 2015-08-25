@@ -537,8 +537,16 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
     
     # pulsar location
-    ptheta = N.pi/2 - psr['DECJ'].val
-    pphi = psr['RAJ'].val
+    if 'RAJ' and 'DECJ' in psr.pars():
+        ptheta = N.pi/2 - psr['DECJ'].val
+        pphi = psr['RAJ'].val
+    elif 'ELONG' and 'ELAT' in psr.pars():
+        fac = 180./N.pi
+        coords = ephem.Equatorial(ephem.Ecliptic(str(psr['ELONG'].val*fac), str(psr['ELAT'].val*fac)))
+
+        ptheta = N.pi/2 - float(repr(coords.dec))
+        pphi = float(repr(coords.ra))
+
 
     # use definition from Sesana et al 2010 and Ellis et al 2012
     phat = N.array([N.sin(ptheta)*N.cos(pphi), N.sin(ptheta)*N.sin(pphi),\
@@ -550,12 +558,6 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
 
     # get values from pulsar object
     toas = N.double(psr.toas())*86400 - tref
-
-    # convert units
-    pd *= eu.KPC2S   # convert from kpc to seconds
-    
-    # get pulsar time
-    tp = toas - pd * (1-cosMu)
     
     if check:
         # check that frequency is not evolving significantly over obs. time
@@ -595,6 +597,12 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     
     ##### pulsar term #####
     if psrTerm:
+
+        # convert units
+        pd *= eu.KPC2S   # convert from kpc to seconds
+    
+        # get pulsar time
+        tp = toas - pd * (1-cosMu)
 
         # solve coupled system of equations to get pulsar term values
         y = eu.solve_coupled_ecc_solution(F, e0, gamma0, l0, mc, q,
