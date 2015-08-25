@@ -493,7 +493,7 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
 
 
 def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
-                e0, l0, q, nmax=100, pd=None, psrTerm=True,
+                e0, l0, q, nmax=100, pd=None, periEv=True, psrTerm=True,
                 tref=0, check=True, useFile=True):
     """
     Simulate GW from eccentric SMBHB. Waveform models from
@@ -517,6 +517,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     :param q: Mass ratio of SMBHB
     :param nmax: Number of harmonics to use in waveform decomposition
     :param pd: Pulsar distance [kpc]
+    :param periEv: Evolve the position of periapsis [boolean] 
     :param psrTerm: Option to include pulsar term [boolean] 
     :param tref: Fiducial time at which initial parameters are referenced [s]
     :param check: Check if frequency evolves significantly over obs. time
@@ -573,7 +574,10 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
             print('F0 = {0}, F1 = {1}, delta f = {2}'.format(Fc0, Fc1, 1/Tobs))
     
     # get gammadot for earth term
-    gammadot = eu.get_gammadot(F, mc, q, e0)
+    if periEv==False:
+        gammadot = 0.0
+    else:
+        gammadot = eu.get_gammadot(F, mc, q, e0)
 
     if useFile:
         if e0 > 0.001 and e0 < 0.999:
