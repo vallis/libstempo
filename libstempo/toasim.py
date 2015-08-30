@@ -618,7 +618,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
                 if ep > 0.001 and ep < 0.999:
                     nharm = min(int(ecc_interp(ep)), nmax)
                 elif ep < 0.001:
-                    nharm = 2
+                    nharm = 3
                 else:
                     nharm = nmax
             else:
