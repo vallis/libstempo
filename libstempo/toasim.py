@@ -491,7 +491,6 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
 
     psr.stoas[:] += res/86400
 
-
 def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
                 e0, l0, q, nmax=100, pd=None, periEv=True, psrTerm=True,
                 tref=0, check=True, useFile=True):
