@@ -492,8 +492,8 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     psr.stoas[:] += res/86400
 
 def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
-                e0, l0, q, nmax=100, pd=None, periEv=True, psrTerm=True,
-                tref=0, check=True, useFile=True):
+                e0, l0, q, nmax=100, nset=None, pd=None, periEv=True,
+                psrTerm=True, tref=0, check=True, useFile=True):
     """
     Simulate GW from eccentric SMBHB. Waveform models from
     Taylor et al. (2015) and Barack and Cutler (2004).
@@ -515,6 +515,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     :param l0: Initial mean anomaly [radians]
     :param q: Mass ratio of SMBHB
     :param nmax: Number of harmonics to use in waveform decomposition
+    :param nset: Fix the number of harmonics to be injected
     :param pd: Pulsar distance [kpc]
     :param periEv: Evolve the position of periapsis [boolean] 
     :param psrTerm: Option to include pulsar term [boolean] 
@@ -580,7 +581,9 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     else:
         gammadot = eu.get_gammadot(F, mc, q, e0)
 
-    if useFile:
+    if nset is not None:
+        nharm = nset
+    elif useFile:
         if e0 > 0.001 and e0 < 0.999:
             nharm = min(int(ecc_interp(e0)), nmax) + 1
         elif e0 < 0.001:
