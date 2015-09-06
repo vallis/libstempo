@@ -699,9 +699,9 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     else:
         psrlocs = N.zeros((Npulsars,2))
         for ii in range(Npulsars):
-            if 'RAJ' and 'DECJ' in psr[ii].pars:
+            if 'RAJ' and 'DECJ' in psr[ii].pars():
                 psrlocs[ii] = psr[ii]['RAJ'].val, psr[ii]['DECJ'].val
-            elif 'ELONG' and 'ELAT' in psr[ii].pars:
+            elif 'ELONG' and 'ELAT' in psr[ii].pars():
                 fac = 180./N.pi
                 coords = ephem.Equatorial(ephem.Ecliptic(str(psr[ii]['ELONG'].val*fac), str(psr[ii]['ELAT'].val*fac)))
                 psrlocs[ii] = float(repr(coords.ra)), float(repr(coords.dec))
