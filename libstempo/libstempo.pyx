@@ -131,6 +131,7 @@ cdef extern from "tempo2.h":
     ctypedef struct observation:
         long double sat        # site arrival time
         long double bat        # barycentric arrival time
+        long double pet        # pulsar emission time
         int deleted            # 1 if observation deleted, -1 if not in fit
         long double prefitResidual
         long double residual
@@ -928,6 +929,23 @@ cdef class tempopulsar:
             return self.flags_[flagname]
         else:
             raise NotImplementedError("Flag-setting capabilities are coming soon.")
+
+    def pets(self,updatebats=True,formresiduals=True):
+        """tempopulsar.pets()
+
+        Return computed pulsar emission times in MJD as a numpy.longdouble array.
+        You get a copy of the current tempo2 array."""
+
+        cdef long double [:] _pets = <long double [:self.nobs]>&(self.psr[0].obsn[0].pet)
+        _pets.strides[0] = sizeof(observation)
+
+        if updatebats:
+            updateBatsAll(self.psr,self.npsr)
+        if formresiduals:
+            formResiduals(self.psr,self.npsr,0)
+
+        return self._timeify(numpy.asarray(_pets).copy())
+
 
     # --- residuals
     def residuals(self,updatebats=True,formresiduals=True,removemean=True):

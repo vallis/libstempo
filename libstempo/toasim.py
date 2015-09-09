@@ -491,10 +491,9 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
 
     psr.stoas[:] += res/86400
 
-
 def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
-                e0, l0, q, nmax=100, pd=None, psrTerm=True,
-                tref=0, check=True, useFile=True):
+                e0, l0, q, nmax=100, nset=None, pd=None, periEv=True,
+                psrTerm=True, tref=0, check=True, useFile=True):
     """
     Simulate GW from eccentric SMBHB. Waveform models from
     Taylor et al. (2015) and Barack and Cutler (2004).
@@ -516,7 +515,9 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     :param l0: Initial mean anomaly [radians]
     :param q: Mass ratio of SMBHB
     :param nmax: Number of harmonics to use in waveform decomposition
+    :param nset: Fix the number of harmonics to be injected
     :param pd: Pulsar distance [kpc]
+    :param periEv: Evolve the position of periapsis [boolean] 
     :param psrTerm: Option to include pulsar term [boolean] 
     :param tref: Fiducial time at which initial parameters are referenced [s]
     :param check: Check if frequency evolves significantly over obs. time
@@ -536,8 +537,16 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     omhat = N.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
     
     # pulsar location
-    ptheta = N.pi/2 - psr['DECJ'].val
-    pphi = psr['RAJ'].val
+    if 'RAJ' and 'DECJ' in psr.pars():
+        ptheta = N.pi/2 - psr['DECJ'].val
+        pphi = psr['RAJ'].val
+    elif 'ELONG' and 'ELAT' in psr.pars():
+        fac = 180./N.pi
+        coords = ephem.Equatorial(ephem.Ecliptic(str(psr['ELONG'].val*fac), str(psr['ELAT'].val*fac)))
+
+        ptheta = N.pi/2 - float(repr(coords.dec))
+        pphi = float(repr(coords.ra))
+
 
     # use definition from Sesana et al 2010 and Ellis et al 2012
     phat = N.array([N.sin(ptheta)*N.cos(pphi), N.sin(ptheta)*N.sin(pphi),\
@@ -549,12 +558,6 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
 
     # get values from pulsar object
     toas = N.double(psr.toas())*86400 - tref
-
-    # convert units
-    pd *= eu.KPC2S   # convert from kpc to seconds
-    
-    # get pulsar time
-    tp = toas - pd * (1-cosMu)
     
     if check:
         # check that frequency is not evolving significantly over obs. time
@@ -573,9 +576,14 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
             print('F0 = {0}, F1 = {1}, delta f = {2}'.format(Fc0, Fc1, 1/Tobs))
     
     # get gammadot for earth term
-    gammadot = eu.get_gammadot(F, mc, q, e0)
+    if periEv==False:
+        gammadot = 0.0
+    else:
+        gammadot = eu.get_gammadot(F, mc, q, e0)
 
-    if useFile:
+    if nset is not None:
+        nharm = nset
+    elif useFile:
         if e0 > 0.001 and e0 < 0.999:
             nharm = min(int(ecc_interp(e0)), nmax) + 1
         elif e0 < 0.001:
@@ -592,6 +600,12 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
     ##### pulsar term #####
     if psrTerm:
 
+        # convert units
+        pd *= eu.KPC2S   # convert from kpc to seconds
+    
+        # get pulsar time
+        tp = toas - pd * (1-cosMu)
+
         # solve coupled system of equations to get pulsar term values
         y = eu.solve_coupled_ecc_solution(F, e0, gamma0, l0, mc, q,
                                           N.array([0.0, tp.min()]))
@@ -607,7 +621,7 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
                 if ep > 0.001 and ep < 0.999:
                     nharm = min(int(ecc_interp(ep)), nmax)
                 elif ep < 0.001:
-                    nharm = 2
+                    nharm = 3
                 else:
                     nharm = nmax
             else:
@@ -685,9 +699,9 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     else:
         psrlocs = N.zeros((Npulsars,2))
         for ii in range(Npulsars):
-            if 'RAJ' and 'DECJ' in psr[ii].pars:
+            if 'RAJ' and 'DECJ' in psr[ii].pars():
                 psrlocs[ii] = psr[ii]['RAJ'].val, psr[ii]['DECJ'].val
-            elif 'ELONG' and 'ELAT' in psr[ii].pars:
+            elif 'ELONG' and 'ELAT' in psr[ii].pars():
                 fac = 180./N.pi
                 coords = ephem.Equatorial(ephem.Ecliptic(str(psr[ii]['ELONG'].val*fac), str(psr[ii]['ELAT'].val*fac)))
                 psrlocs[ii] = float(repr(coords.ra)), float(repr(coords.dec))
