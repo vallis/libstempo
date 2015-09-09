@@ -462,8 +462,16 @@ cdef class GWB:
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
 
+def parse_tempo2version(s):
+    """Tempo2 now temporarily has a different version system, so convert"""
+    prog = re.compile("[0-9]+\.[0-9]+\.[0-9]+")
+    if prog.match(string(s)):
+        return string(s)
+    else:
+        return string(s).split()[1]
+
 def tempo2version():
-    return StrictVersion(string(TEMPO2_VERSION).split()[1])
+    return StrictVersion(parse_tempo2version(TEMPO2_VERSION))
 
 cdef class tempopulsar:
     cpdef public object parfile
