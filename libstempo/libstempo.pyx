@@ -420,7 +420,7 @@ cdef class GWB:
     def __dealloc__(self):
         stdlib.free(self.gw)
 
-    def add_gwb(self,tempopulsar pulsar,distance=1):
+    def gwb_sig(self,tempopulsar pulsar, distance=1):
         cdef long double dist = distance * 3.086e19
 
         cdef long double ra_p  = pulsar.psr[0].param[param_raj].val[0]
@@ -443,8 +443,11 @@ cdef class GWB:
                 res[i] = res[i] + calculateResidualGW(kp,&self.gw[k],obstime,dist)
 
         res[:] = res[:] - numpy.mean(res)
+
+        return res
         
-        pulsar.stoas[:] += res[:] / 86400.0
+    def add_gwb(self,tempopulsar pulsar,distance=1):
+        pulsar.stoas[:] += self.gwb_sig(pulsar, distance) / 86400.0
 
     def gw_dist(self):
         theta = numpy.zeros(self.ngw)
