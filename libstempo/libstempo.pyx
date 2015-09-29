@@ -866,7 +866,7 @@ cdef class tempopulsar:
             cdef double [:] _toaerrs = <double [:self.nobs]>&(self.psr[0].obsn[0].toaErr)
             _toaerrs.strides[0] = sizeof(observation)
 
-            return self._dimensionfy(numpy.asarray(_toaerrs),u.us)
+            return self._dimensionfy(numpy.asarray(_toaerrs),u.us) if self.units else numpy.asarray(_toaerrs)
 
     # frequencies in MHz (numpy.double array)
     property freqs:
@@ -877,7 +877,7 @@ cdef class tempopulsar:
             cdef double [:] _freqs = <double [:self.nobs]>&(self.psr[0].obsn[0].freq)
             _freqs.strides[0] = sizeof(observation)
 
-            return self._dimensionfy(numpy.asarray(_freqs),u.MHz)
+            return self._dimensionfy(numpy.asarray(_freqs),u.MHz) if self.units else numpy.asarray(_freqs)
 
     # --- SSB frequencies
     #     CHECK: does updateBatsAll update the SSB frequencies?
@@ -892,7 +892,7 @@ cdef class tempopulsar:
 
         updateBatsAll(self.psr,self.npsr)
 
-        return self._dimensionfy(numpy.asarray(_freqs)/1e6,u.MHz)
+        return self._dimensionfy(numpy.asarray(_freqs)/1e6,u.MHz) if self.units else numpy.asarray(_freqs)
 
     property deleted:
         """Return deletion status of individual observations (0 = OK, 1 = deleted)
@@ -979,7 +979,7 @@ cdef class tempopulsar:
             # TO DO: what to do if there are deleted points?
             res -= res[0]
 
-        return self._dimensionfy(res,u.s)
+        return self._dimensionfy(res,u.s) if self.units else res
 
     def formbats(self):
         formBatsAll(self.psr,self.npsr)    
@@ -1270,7 +1270,8 @@ cdef class tempopulsar:
         err = self.toaerrs
         norm = numpy.sum(1.0 / (1e-12 * err * err))
 
-        return self._dimensionfy(math.sqrt(self.chisq(removemean=removemean)/norm),u.s)
+        res = math.sqrt(self.chisq(removemean=removemean)/norm)
+        return self._dimensionfy(res,u.s) if self.units else res
 
     def savepar(self,parfile):
         """tempopulsar.savepar(parfile)
