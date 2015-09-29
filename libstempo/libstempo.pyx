@@ -420,7 +420,7 @@ cdef class GWB:
     def __dealloc__(self):
         stdlib.free(self.gw)
 
-    def add_gwb(self,tempopulsar pulsar,distance=1):
+    def gwb_sig(self,tempopulsar pulsar, distance=1):
         cdef long double dist = distance * 3.086e19
 
         cdef long double ra_p  = pulsar.psr[0].param[param_raj].val[0]
@@ -443,8 +443,11 @@ cdef class GWB:
                 res[i] = res[i] + calculateResidualGW(kp,&self.gw[k],obstime,dist)
 
         res[:] = res[:] - numpy.mean(res)
+
+        return res
         
-        pulsar.stoas[:] += res[:] / 86400.0
+    def add_gwb(self,tempopulsar pulsar,distance=1):
+        pulsar.stoas[:] += self.gwb_sig(pulsar, distance) / 86400.0
 
     def gw_dist(self):
         theta = numpy.zeros(self.ngw)
@@ -463,8 +466,16 @@ cdef class GWB:
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
 
+def parse_tempo2version(s):
+    """Tempo2 now temporarily has a different version system, so convert"""
+    prog = re.compile("[0-9]+\.[0-9]+\.[0-9]+")
+    if prog.match(string(s)):
+        return string(s)
+    else:
+        return string(s).split()[1]
+
 def tempo2version():
-    return StrictVersion(string(TEMPO2_VERSION).split()[1])
+    return StrictVersion(parse_tempo2version(TEMPO2_VERSION))
 
 cdef class tempopulsar:
     cpdef public object parfile

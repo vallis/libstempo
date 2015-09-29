@@ -245,7 +245,7 @@ def get_cn(n, mc, dl, F, e):
     
     amp = 2 * mc**(5/3) * omega**(2/3) / dl
      
-    ret = amp * ss.jn(n,n*e) 
+    ret = amp * ss.jn(n,n*e) / (n * omega)
 
     return ret
 
@@ -298,7 +298,7 @@ def calculate_splus_scross(nmax, mc, dl, F, e, t, l0, gamma, gammadot, inc):
     
 
     splus_n = -0.5 * (1+np.cos(inc)**2) * (an*sp - bn*sm) + \
-            (1-np.cos(inc)**2)*cn * np.cos(phase1)
+            (1-np.cos(inc)**2)*cn * np.sin(phase1)
     scross_n = np.cos(inc) * (an*cm - bn*cp)
         
 
