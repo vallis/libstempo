@@ -701,7 +701,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
         
         for ii in range(Npulsars):
             if 'RAJ' and 'DECJ' in psr[ii].pars():
-                psrlocs[ii] = np.double(psr[ii]['RAJ'].val), np.double(psr[ii]['DECJ'].val)
+                psrlocs[ii] = N.double(psr[ii]['RAJ'].val), N.double(psr[ii]['DECJ'].val)
             elif 'ELONG' and 'ELAT' in psr[ii].pars():
                 fac = 180./N.pi
                 # check for B name
