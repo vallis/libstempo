@@ -763,14 +763,14 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     for ll in range(Npulsars):
         Res[ll,:] = Res_t[ll, 10:(npts+10)]
         f = interp.interp1d(ut, Res[ll,:], kind='linear')
-        toas_tmp = np.double(psr[ll].toas().copy)
+        toas_tmp = N.double(psr[ll].toas().copy)
         res_gw.append(f(toas_tmp*86400))
         #res_gw.append(f(psr[ll].toas()*86400))
 
     #return res_gw
     ct = 0
     for p in psr:
-        p.stoas[:] += np.longdouble(res_gw[ct])/86400.0
+        p.stoas[:] += N.longdouble(res_gw[ct])/86400.0
         ct += 1
 
 def computeORFMatrix(psr):
