@@ -763,7 +763,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     for ll in range(Npulsars):
         Res[ll,:] = Res_t[ll, 10:(npts+10)]
         f = interp.interp1d(ut, Res[ll,:], kind='linear')
-        toas_tmp = N.double(psr[ll].toas().copy)
+        toas_tmp = N.double(psr[ll].toas().copy())
         res_gw.append(f(toas_tmp*86400))
         #res_gw.append(f(psr[ll].toas()*86400))
 
