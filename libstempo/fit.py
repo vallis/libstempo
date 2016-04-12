@@ -105,8 +105,9 @@ def glsfit(psr,renormalize=True):
     Update psr[...].val and psr[...].err from solution.
     If renormalize=True, normalize each design-matrix column by its norm."""
     
-    res, err = psr.residuals(removemean=False)[psr.deleted == 0], psr.toaerrs[psr.deleted == 0]
-    M = psr.designmatrix(updatebats=False,fixunits=True,fixsigns=True)
+    mask = psr.deleted == 0
+    res, err = psr.residuals(removemean=False)[mask], psr.toaerrs[mask]
+    M = psr.designmatrix(updatebats=False,fixunits=True,fixsigns=True)[mask,:]
         
     C = numpy.diag((err * 1e-6)**2)
     
