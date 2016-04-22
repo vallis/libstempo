@@ -690,6 +690,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     :param f0: Frequency of spectrum turnover
     :param beta: Spectral index of power spectram for f << f0
     :param power: Fudge factor for flatness of spectrum turnover
+    :param userSpec: User-supplied characteristic strain spectrum 
     :param npts: Number of points used in interpolation
     :param howml: Lowest frequency is 1/(howml * T) 
     
