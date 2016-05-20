@@ -643,11 +643,38 @@ def add_ecc_cgw(psr, gwtheta, gwphi, mc, dist, F, inc, psi, gamma0,
                 (fplus*sin2psi + fcross*cos2psi) * scross
          
     psr.stoas[:] += rr/86400
-    
 
+
+def extrap1d(interpolator):
+    """
+    Function to extend an interpolation function to an
+    extrapolation function.
+
+    :param interpolator: scipy interp1d object
+
+    :returns ufunclike: extension of function to extrapolation
+    """
+    
+    xs = interpolator.x
+    ys = interpolator.y
+
+    def pointwise(x):
+        if x < xs[0]:
+            return ys[0]+(x-xs[0])*(ys[1]-ys[0])/(xs[1]-xs[0])
+        elif x > xs[-1]:
+            return ys[-1]+(x-xs[-1])*(ys[-1]-ys[-2])/(xs[-1]-xs[-2])
+        else:
+            return interpolator(x)
+
+    def ufunclike(xs):
+        return N.array(map(pointwise, N.array(xs)))
+
+    return ufunclike
+
+    
 def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
               clm=[N.sqrt(4.0*N.pi)], lmax=0, f0=1e-9, beta=1,
-              power=1, npts=600, howml=10):
+              power=1, userSpec=None, npts=600, howml=10):
     """
     Function to create GW-induced residuals from a stochastic GWB as defined
     in Chamberlin, Creighton, Demorest, et al. (2014).
@@ -663,6 +690,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     :param f0: Frequency of spectrum turnover
     :param beta: Spectral index of power spectram for f << f0
     :param power: Fudge factor for flatness of spectrum turnover
+    :param userSpec: User-supplied characteristic strain spectrum 
     :param npts: Number of points used in interpolation
     :param howml: Lowest frequency is 1/(howml * T) 
     
@@ -734,12 +762,27 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
         w[ll,:] = N.random.randn(Nf) + 1j*N.random.randn(Nf)
 
     # strain amplitude
-    f1yr = 1/3.16e7
-    alpha = -0.5 * (gam-3)
-    hcf = Amp * (f/f1yr)**(alpha)
-    if turnover:
-        si = alpha - beta
-        hcf /= (1+(f/f0)**(power*si))**(1/power)
+    if userSpec is None:
+        
+        f1yr = 1/3.16e7
+        alpha = -0.5 * (gam-3)
+        hcf = Amp * (f/f1yr)**(alpha)
+        if turnover:
+            si = alpha - beta
+            hcf /= (1+(f/f0)**(power*si))**(1/power)
+
+    elif userSpec is not None:
+        
+        fmin = 1.0/(stop - start - 2.0*86400.0)
+        fmax = 1.0/(14.0*86400.0)
+        freqs = fmin * N.linspace(1.0, int(fmax/fmin), int(fmax/fmin))
+        
+        if len(userSpec) != len(freqs):
+            raise ValueError("Number of supplied spectral points does not match number of frequencies!")
+        else:
+            fspec_in = interp.interp1d(N.log10(freqs), N.log10(userSpec), kind='linear')
+            fspec_ex = extrap1d(fspec_in)
+            hcf = 10.0**fspec_ex(N.log10(f))
 
     C = 1 / 96 / N.pi**2 * hcf**2 / f**3 * dur * howml
 
