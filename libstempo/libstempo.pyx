@@ -1049,7 +1049,7 @@ cdef class tempopulsar:
         for par in self.excludepars:
             self[par].fit = excludeparstate[par]
 
-        return ret[:,(0 if incoffset else 1):]
+        return ret[:,0:] if incoffset else ret[:,1:]
 
     # --- observation telescope
     #     TO DO: support setting?
