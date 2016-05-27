@@ -359,7 +359,7 @@ def add_line(psr,f,A,offset=0.5):
 
     psr.stoas[:] += sine / day
 
-def add_glitch(psr, epoch, amplitude):
+def add_glitch(psr, epoch, amp):
     """
     Like pulsar term BWM event, but now differently parameterized: just an
     amplitude (not log-amp) parameter, and an epoch. [source: piccard]
