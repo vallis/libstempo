@@ -348,14 +348,35 @@ def add_dm(psr,A,gamma,components=10,seed=None):
     psr.stoas[:] += (1.0/day) * v * N.dot(F,y)
     
 def add_line(psr,f,A,offset=0.5):
-    """Add a line of frequency `f` [Hz] and amplitude `A` [s],
-    with origin at a fraction `offset` through the dataset."""
+    """
+    Add a line of frequency `f` [Hz] and amplitude `A` [s],
+    with origin at a fraction `offset` through the dataset.
+    """
     
     t = psr.toas()
     t0 = offset * (N.max(t) - N.min(t))
     sine = A * N.cos(2 * math.pi * f * day * (t - t0))
 
     psr.stoas[:] += sine / day
+
+def add_glitch(psr, epoch, amplitude):
+    """
+    Like pulsar term BWM event, but now differently parameterized: just an
+    amplitude (not log-amp) parameter, and an epoch.
+    
+    :param psr: pulsar object
+    :param epoch: TOA time (MJD) the burst hits the earth
+    :param amp: amplitude of the glitch
+    """
+    
+    # Define the heaviside function
+    heaviside = lambda x: 0.5 * (N.sign(x) + 1)
+
+    # Glitches are spontaneous spin-up events.
+    # Thus TOAs will be advanced, and resiudals will be negative.
+    
+    psr.stoas[:] -= amp * heaviside(psr.toas() - epoch) * \
+      (psr.toas() - epoch)*86400.0*
 
 def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
                         pphase=None, psrTerm=True, evolve=True, \
@@ -660,9 +681,9 @@ def extrap1d(interpolator):
 
     def pointwise(x):
         if x < xs[0]:
-            return ys[0]+(x-xs[0])*(ys[1]-ys[0])/(xs[1]-xs[0])
+            return ys[0] # +(x-xs[0])*(ys[1]-ys[0])/(xs[1]-xs[0])
         elif x > xs[-1]:
-            return ys[-1]+(x-xs[-1])*(ys[-1]-ys[-2])/(xs[-1]-xs[-2])
+            return ys[-1] # +(x-xs[-1])*(ys[-1]-ys[-2])/(xs[-1]-xs[-2])
         else:
             return interpolator(x)
 
@@ -680,7 +701,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     in Chamberlin, Creighton, Demorest, et al. (2014).
     
     :param psr: pulsar object for single pulsar
-    :param Amp: Amplitude of red noise in GW units
+    :param Amp: Amplitude of red noise in GW units 
     :param gam: Red noise power law spectral index
     :param noCorr: Add red noise with no spatial correlations
     :param seed: Random number seed
