@@ -362,7 +362,7 @@ def add_line(psr,f,A,offset=0.5):
 def add_glitch(psr, epoch, amplitude):
     """
     Like pulsar term BWM event, but now differently parameterized: just an
-    amplitude (not log-amp) parameter, and an epoch.
+    amplitude (not log-amp) parameter, and an epoch. [source: piccard]
     
     :param psr: pulsar object
     :param epoch: TOA time (MJD) the burst hits the earth
