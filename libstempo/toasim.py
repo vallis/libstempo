@@ -376,7 +376,7 @@ def add_glitch(psr, epoch, amplitude):
     # Thus TOAs will be advanced, and resiudals will be negative.
     
     psr.stoas[:] -= amp * heaviside(psr.toas() - epoch) * \
-      (psr.toas() - epoch)*86400.0*
+      (psr.toas() - epoch)*86400.0
 
 def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
                         pphase=None, psrTerm=True, evolve=True, \
