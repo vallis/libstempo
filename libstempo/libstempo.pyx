@@ -166,6 +166,8 @@ cdef extern from "tempo2.h":
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
+        char *JPL_EPHEMERIS
+        char *ephemeris
         int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
         double posPulsar[3]     # 3-unitvector pointing at the pulsar
         #long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
@@ -666,7 +668,6 @@ cdef class tempopulsar:
             else:
                 raise ValueError
 
-    # TO DO: see if setting works
     property binarymodel:
         """Get or set pulsar binary model."""
 
@@ -681,9 +682,24 @@ cdef class tempopulsar:
             else:
                 raise ValueError
 
+    property ephemeris:
+        """Get or set the solar system ephemeris."""
+
+        def __get__(self):
+            return string(self.psr[0].ephemeris)
+
+        def __set__(self,value):
+            value = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
+            model_bytes = value.encode()
+
+            if len(model_bytes) < 100:    
+                stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+            else:
+                raise ValueError
+
     # TO DO: see if setting works
     property clock:
-        """Get or set pulsar binary model."""
+        """Get or set clock file."""
 
         def __get__(self):
             return string(self.psr[0].clock)
