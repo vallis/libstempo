@@ -142,6 +142,7 @@ cdef extern from "tempo2.h":
         int nFlags             # Number of flags set
         double freq            # frequency of observation (in MHz)
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
+        char fname[MAX_FILELEN] # name of datafile giving TOA
         char telID[100]        # telescope ID
         double earth_ssb[6]    # Earth center wrt SSB 
         double observatory_earth[6]    # Obs wrt Earth center
@@ -1065,6 +1066,19 @@ cdef class tempopulsar:
             ret[i] = string(self.psr[0].obsn[i].telID)
             if ret[i] in aliases:
                 ret[i] = aliases[ret[i]]
+
+        return ret
+
+    # TOA filename
+    def filename(self):
+        """tempopulsar.filename()
+
+        Returns a numpy character array of the filename for each observation,
+        corresponding to tempo2 `fname` fields in the observation struct."""
+
+        ret = numpy.zeros(self.nobs,dtype='a' + str(MAX_FILELEN))
+        for i in range(self.nobs):
+            ret[i] = string(self.psr[0].obsn[i].fname)
 
         return ret
 
