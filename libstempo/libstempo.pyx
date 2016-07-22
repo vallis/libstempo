@@ -130,7 +130,11 @@ cdef extern from "tempo2.h":
 
     ctypedef struct observation:
         long double sat        # site arrival time
+        long double origsat	#Backup of SAT
+        long double sat_day	#Just the Day part
+        long double sat_sec	#Just the Sec part
         long double bat        # barycentric arrival time
+        long double batCorr    #update from sat-> bat 
         long double pet        # pulsar emission time
         int deleted            # 1 if observation deleted, -1 if not in fit
         long double prefitResidual
@@ -895,6 +899,59 @@ cdef class tempopulsar:
             _freqs.strides[0] = sizeof(observation)
 
             return self._dimensionfy(numpy.asarray(_freqs),u.MHz) if self.units else numpy.asarray(_freqs)
+
+
+    
+    # --- Originally loaded value for SAT
+    def origSats(self):
+        """tempopulsar.origSats()
+
+        Return originally loaded value of the SAT in case it is updated afterwards. Returned as long double array.
+        You get a copy of the current values."""
+
+        cdef long double [:] _origSats = <long double [:self.nobs]>&(self.psr[0].obsn[0].origsat)
+        _origSats.strides[0] = sizeof(observation)
+
+        return self._dimensionfy(numpy.asarray(_origSats),u.s) if self.units else numpy.asarray(_origSats)
+
+
+	# --- day part of the SAT
+    def satDay(self):
+        """tempopulsar.satDay()
+
+        Return the day part of the SAT as long double array.
+        You get a copy of the current values."""
+
+        cdef long double [:] _satDays = <long double [:self.nobs]>&(self.psr[0].obsn[0].sat_day)
+        _satDays.strides[0] = sizeof(observation) 
+
+        return self._dimensionfy(numpy.asarray(_satDays),u.s) if self.units else numpy.asarray(_satDays)
+
+
+    # --- return the decimal part of the SAT
+    def satSec(self):
+        """tempopulsar.satSec()
+
+        Return decimal part of the SAT as a long double array
+        You get a copy of the current values."""
+
+        cdef long double [:] _satSecs  = <long double [:self.nobs]>&(self.psr[0].obsn[0].sat_sec)
+        _satSecs.strides[0] = sizeof(observation)
+
+        return self._dimensionfy(numpy.asarray(_satSecs),u.s) if self.units else numpy.asarray(_satSecs)
+
+
+    # --- Correction to SSB
+    def batCorrs(self):
+        """tempopulsar.batCorrs()
+
+        Return computed correction to SSB in units of days.
+        You get a copy of the current values."""
+
+        cdef long double [:] _batCorr = <long double [:self.nobs]>&(self.psr[0].obsn[0].batCorr)
+        _batCorr.strides[0] = sizeof(observation)
+
+        return self._dimensionfy(numpy.asarray(_batCorr),u.s) if self.units else numpy.asarray(_batCorr)
 
     # --- SSB frequencies
     #     CHECK: does updateBatsAll update the SSB frequencies?
