@@ -754,7 +754,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
             elif 'ELONG' and 'ELAT' in psr[ii].pars():
                 fac = 180./N.pi
                 # check for B name
-                if 'B' in self.name:
+                if 'B' in psr[ii].name:
                     epoch = '1950'
                 else:
                     epoch = '2000'
