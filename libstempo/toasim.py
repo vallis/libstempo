@@ -429,8 +429,16 @@ def add_cgw(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=1.0, \
     fac3 = mc**(5/3)/dist
 
     # pulsar location
-    ptheta = N.pi/2 - psr['DECJ'].val
-    pphi = psr['RAJ'].val
+    if 'RAJ' and 'DECJ' in psr.pars():
+        ptheta = N.pi/2 - psr['DECJ'].val
+        pphi = psr['RAJ'].val
+    elif 'ELONG' and 'ELAT' in psr.pars():
+        fac = 180./N.pi
+        coords = ephem.Equatorial(ephem.Ecliptic(str(psr['ELONG'].val*fac), 
+                                                 str(psr['ELAT'].val*fac)))
+
+        ptheta = N.pi/2 - float(repr(coords.dec))
+        pphi = float(repr(coords.ra))
 
     # use definition from Sesana et al 2010 and Ellis et al 2012
     phat = N.array([N.sin(ptheta)*N.cos(pphi), N.sin(ptheta)*N.sin(pphi),\
@@ -754,7 +762,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
             elif 'ELONG' and 'ELAT' in psr[ii].pars():
                 fac = 180./N.pi
                 # check for B name
-                if 'B' in self.name:
+                if 'B' in psr[ii].name:
                     epoch = '1950'
                 else:
                     epoch = '2000'
