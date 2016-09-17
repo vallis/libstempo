@@ -9,7 +9,8 @@ import sys, os
 
 from setuptools import setup
 from setuptools import Extension
-#from distutils.extension import Extension
+import distutils.sysconfig
+
 from Cython.Build import cythonize
 
 import numpy
@@ -19,12 +20,14 @@ print("""WARNING: The libstempo API has changed substantially (for the better) f
          from https://pypi.python.org/simple/libstempo, or checkout the libstempo1
          branch on GitHub - https://github.com/vallis/libstempo/tree/libstempo1""")
 
-tempo2 = None
+tempo2, force_tempo2 = None, False
 
 argv_replace = []
 for arg in sys.argv:
     if arg.startswith('--with-tempo2='):
         tempo2 = arg.split('=', 1)[1]
+    elif arg.startswith('--force-tempo2-install'):
+        force_tempo2 = True
     else:
         argv_replace.append(arg)
 sys.argv = argv_replace
@@ -47,19 +50,32 @@ if tempo2 is None:
     found = [path for path in paths if os.path.isfile(path + '/include/tempo2.h')]
     found = list(set(found))    # remove duplicates
 
-    if found:
+    if found and not force_tempo2:
         tempo2 = found[0]
         print("Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2))
+
+        if 'TEMPO2' in os.environ:
+            runtime = os.environ['TEMPO2']
+        else:
+            runtime = os.path.join(tempo2,'share','tempo2')
+            print("But where is the tempo2 runtime? I'm guessing {}; if I am not right, you should define the environment variable TEMPO2.".format(runtime))
     else:
-        # tempo2 won't be there, but at least it should exist as a directory
-        tempo2 = '/usr'
-        print("""
-I have not been able to autodetect the location of the tempo2 headers and
-libraries. Nevertheless, I will proceed with the installation. If you get
-errors, please run setup.py again, but use the option --with-tempo2=...
-to point me to the tempo2 install root (e.g., /usr/local if tempo2.h is
-in /usr/local/include).
-""")
+        # try installing tempo2!
+        tempo2 = os.path.dirname(os.path.dirname(os.path.dirname(distutils.sysconfig.get_python_lib())))
+        runtime = os.path.join(tempo2,'share','tempo2')
+
+        print("I have not been able to (or I was instructed not to) autodetect the location of the tempo2 headers and libraries.")
+        print("I will attempt to download and install tempo2 in {}; runtime files will be in {}.".format(tempo2,runtime))
+        print("Please note that if the environment variable TEMPO2 is defined, it will override {}.".format(runtime))
+
+        try:
+            subprocess.check_call(["./install_tempo2.sh",tempo2])
+        except subprocess.CalledProcessError:
+            print("I'm sorry, the tempo2 installation failed. I tried my best!")
+            sys.exit(2)
+
+initsrc = open('libstempo/__init__.py.in','r').read().replace("TEMPO2DIR",runtime)
+open('libstempo/__init__.py','w').write(initsrc)
 
 setup(name = 'libstempo',
       version = '2.2.5', # remember to change it in __init__.py
@@ -78,8 +94,9 @@ setup(name = 'libstempo',
                     'libstempo.spharmORFbasis', 'libstempo.eccUtils'],
 
       ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
-                                        language="c++",
+                                        language = "c++",
                                         include_dirs = [tempo2 + '/include',numpy.get_include()],
                                         libraries = ['tempo2'],
-                                        library_dirs = [tempo2 + '/lib']))
+                                        library_dirs = [tempo2 + '/lib'],
+                                        extra_compile_args = ["-Wno-unused-function"]))
       )
