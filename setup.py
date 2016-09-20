@@ -5,7 +5,7 @@
 
 from __future__ import print_function
 
-import sys, os
+import sys, os, platform
 
 from setuptools import setup
 from setuptools import Extension
@@ -77,6 +77,12 @@ if tempo2 is None:
 initsrc = open('libstempo/__init__.py.in','r').read().replace("TEMPO2DIR",runtime)
 open('libstempo/__init__.py','w').write(initsrc)
 
+# need rpath links to shared libraries on Linux
+if platform.system() == 'Linux':
+    linkArgs = ['-Wl,-R{}/lib'.format(tempo2)]
+else:
+    linkArgs = []
+
 setup(name = 'libstempo',
       version = '2.2.5', # remember to change it in __init__.py
       description = 'A Python wrapper for tempo2',
@@ -98,5 +104,6 @@ setup(name = 'libstempo',
                                         include_dirs = [tempo2 + '/include',numpy.get_include()],
                                         libraries = ['tempo2'],
                                         library_dirs = [tempo2 + '/lib'],
-                                        extra_compile_args = ["-Wno-unused-function"]))
+                                        extra_compile_args = ["-Wno-unused-function"],
+                                        extra_link_args = linkArgs))
       )
