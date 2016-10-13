@@ -4,7 +4,7 @@ import math, types
 import numpy as N
 import matplotlib.pyplot as P
 
-def plotres(psr,deleted=False,group=None):
+def plotres(psr,deleted=False,group=None,**kwargs):
     """Plot residuals, compute unweighted rms residual."""
 
     res, t, errs = psr.residuals(), psr.toas(), psr.toaerrs
@@ -17,7 +17,7 @@ def plotres(psr,deleted=False,group=None):
     
     if group is None:
         i = N.argsort(t)
-        P.errorbar(t[i],res[i]/1e-6,yerr=errs[i],fmt='x')
+        P.errorbar(t[i],res[i]/1e-6,yerr=errs[i],fmt='x',**kwargs)
     else:
         if (not deleted) and N.any(psr.deleted):
             flagmask = psr.flagvals(group)[~psr.deleted]
@@ -30,7 +30,7 @@ def plotres(psr,deleted=False,group=None):
             f = (flagmask == flagval)
             flagres, flagt, flagerrs = res[f], t[f], errs[f]
             i = N.argsort(flagt)
-            P.errorbar(flagt[i],flagres[i]/1e-6,yerr=flagerrs[i],fmt='x')
+            P.errorbar(flagt[i],flagres[i]/1e-6,yerr=flagerrs[i],fmt='x',**kwargs)
         
         P.legend(unique,numpoints=1,bbox_to_anchor=(1.1,1.1))
 

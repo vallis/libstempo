@@ -115,8 +115,8 @@ def glsfit(psr,renormalize=True):
         norm = numpy.sqrt(numpy.sum(M**2,axis=0))
         M /= norm
     else:
-        norm = 1.0
-        
+        norm = np.ones_like(M[0,:])
+    
     mtcm = numpy.dot(M.T,numpy.dot(numpy.linalg.inv(C),M))
     mtcy = numpy.dot(M.T,numpy.dot(numpy.linalg.inv(C),res))
     

@@ -74,6 +74,7 @@ if tempo2 is None:
             print("I'm sorry, the tempo2 installation failed. I tried my best!")
             sys.exit(2)
 
+runtime = os.path.join(tempo2,'share','tempo2')
 initsrc = open('libstempo/__init__.py.in','r').read().replace("TEMPO2DIR",runtime)
 open('libstempo/__init__.py','w').write(initsrc)
 
@@ -84,7 +85,7 @@ else:
     linkArgs = []
 
 setup(name = 'libstempo',
-      version = '2.2.5', # remember to change it in __init__.py
+      version = '2.3.0', # remember to change it in __init__.py.in
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
@@ -102,7 +103,7 @@ setup(name = 'libstempo',
       ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
                                         language = "c++",
                                         include_dirs = [tempo2 + '/include',numpy.get_include()],
-                                        libraries = ['tempo2'],
+                                        libraries = ['tempo2','tempo2pred'],
                                         library_dirs = [tempo2 + '/lib'],
                                         extra_compile_args = ["-Wno-unused-function"],
                                         extra_link_args = linkArgs))

@@ -33,6 +33,8 @@ from cython cimport view
 import numpy
 cimport numpy
 
+import scipy.linalg
+
 try:
     import astropy.units as u
     from astropy.units import Quantity
@@ -109,9 +111,13 @@ cdef extern from "tempo2.h":
     enum: MAX_PARAMS
     enum: MAX_JUMPS
     enum: MAX_FLAG_LEN
+    enum: MAX_FIT
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
+    enum: param_LAST
+    enum: param_ZERO
+    enum: param_JUMP
 
     cdef char *TEMPO2_VERSION "TEMPO2_h_VER"
 
@@ -134,6 +140,7 @@ cdef extern from "tempo2.h":
         long double sat_day	#Just the Day part
         long double sat_sec	#Just the Sec part
         long double bat        # barycentric arrival time
+        long double bbat       # barycentric arrival time
         long double batCorr    #update from sat-> bat 
         long double pet        # pulsar emission time
         int deleted            # 1 if observation deleted, -1 if not in fit
@@ -155,6 +162,19 @@ cdef extern from "tempo2.h":
         long double torb       # Combined binary delay
         long long pulseN       # Pulse number
 
+    ctypedef int param_label
+
+    ctypedef double (*paramDerivFunc)(pulsar*,int,double,int,param_label,int)
+    ctypedef void (*paramUpdateFunc)(pulsar*,int,param_label,int,double,double)
+
+    ctypedef struct FitInfo:
+        unsigned int nParams
+        unsigned int nConstraints
+        int paramIndex[MAX_FIT]
+        int paramCounters[MAX_FIT]
+        paramDerivFunc paramDerivs[MAX_FIT]
+        paramUpdateFunc updateFunctions[MAX_FIT]
+
     ctypedef struct observatory:
         double height_grs80     # GRS80 geodetic height
 
@@ -175,12 +195,13 @@ cdef extern from "tempo2.h":
         char *ephemeris
         int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
         double posPulsar[3]     # 3-unitvector pointing at the pulsar
-        #long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
-        int phaseJumpID[MAX_JUMPS]        # ID of closest point to phase jump
-        int phaseJumpDir[MAX_JUMPS]       # Size and direction of phase jump
-        int nPhaseJump                    # Number of phase jumps
+        # long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
+        int phaseJumpID[MAX_JUMPS]         # ID of closest point to phase jump
+        int phaseJumpDir[MAX_JUMPS]        # Size and direction of phase jump
+        int nPhaseJump                     # Number of phase jumps
         double rmsPost
         char clock[16]
+        FitInfo fitinfo
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -192,12 +213,12 @@ cdef extern from "tempo2.h":
     void formBatsAll(pulsar *psr,int npsr)
     void updateBatsAll(pulsar *psr,int npsr)                    # what's the difference?
     void formResiduals(pulsar *psr,int npsr,int removeMean)
-    void doFit(pulsar *psr,int npsr,int writeModel)
-    void updateParameters(pulsar *psr,int p,double val[],double error[])
 
-    # for tempo2 versions older than ..., change to
-    # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos)
-    void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos,int ipsr)
+    # void doFit(pulsar *psr,int npsr,int writeModel) --- obsoleted
+    # void doFitAll(pulsar *psr,int npsr, const char *covarFuncFile) --- obsoleted
+    # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos) -- obsoleted
+    # void FITfuncs(double x,double afunc[],int ma,pulsar *psr,int ipos,int ipsr) --- obsoleted
+    # void updateParameters(pulsar *psr,int p,double val[],double error[]) -- obsoleted
 
     int turn_hms(double turn,char *hms)
 
@@ -206,6 +227,14 @@ cdef extern from "tempo2.h":
 
     observatory *getObservatory(char *code)
 
+cdef extern from "t2fit-stub.h":
+    double t2FitFunc_jump(pulsar *psr,int ipsr,double x,int ipos,param_label label,int k)
+    void t2UpdateFunc_jump(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
+
+    double t2FitFunc_zero(pulsar *psr,int ipsr,double x,int ipos,param_label label,int k)
+    void t2UpdateFunc_zero(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
+
+    void t2fit_fillOneParameterFitInfo(pulsar* psr,param_label fit_param,const int k,FitInfo& OUT)
 
 cdef void set_longdouble_from_array(long double *p,numpy.ndarray[numpy.npy_longdouble,ndim=0] a):
     p[0] = (<long double*>(a.data))[0]
@@ -228,6 +257,9 @@ cdef class tempopar:
 
     cdef public object unit
     cdef public object timescale
+
+    cdef public int ct
+    cdef public int subct
 
     cdef int _isjump
     cdef void *_val
@@ -314,6 +346,10 @@ cdef class tempopar:
             elif not value:
                 raise ValueError("JUMP parameters declared in the par file cannot be unset in tempo2.")
 
+    property isjump:
+        def __get__(self):
+            return True if self._isjump else False
+
     def __str__(self):
         if self.set:
             return 'tempo2 parameter %s (%s): %s +/- %s' % (self.name,'fitted' if self.fit else 'not fitted',repr(self.val),repr(self.err))
@@ -325,7 +361,7 @@ cdef class tempopar:
 
 map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELAT'}
 
-cdef create_tempopar(parameter par,int subct,int eclCoord,object units):
+cdef create_tempopar(parameter par,int ct,int subct,int eclCoord,object units):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
     try:
@@ -351,6 +387,9 @@ cdef create_tempopar(parameter par,int subct,int eclCoord,object units):
     newpar._fitFlag = &par.fitFlag[subct]
     newpar._paramSet = &par.paramSet[subct]
 
+    newpar.ct = ct
+    newpar.subct = subct
+
     return newpar
 
 # TODO: note that currently we cannot change the number of jumps programmatically
@@ -372,6 +411,9 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
     newpar._val = &psr.jumpVal[ct]
     newpar._err = &psr.jumpValErr[ct]
     newpar._fitFlag = &psr.fitJump[ct]
+
+    newpar.ct = param_JUMP
+    newpar.subct = ct
 
     return newpar
 
@@ -500,9 +542,6 @@ cdef class tempopulsar:
     cpdef object flagnames_ # a list of all flags that have values
     cpdef object flags_     # a dictionary of numpy arrays with flag values
 
-    cpdef public double fitchisq    # chisq after tempo2 fit
-    cpdef public double fitrms      # rms residuals after tempo2 fit
-
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
@@ -606,7 +645,7 @@ cdef class tempopulsar:
                 if fixprefiterrors and not params[ct].fitFlag[subct]:
                     params[ct].prefitErr[subct] = 0
 
-                newpar = create_tempopar(params[ct],subct,self.psr[0].eclCoord,self.units)
+                newpar = create_tempopar(params[ct],ct,subct,self.psr[0].eclCoord,self.units)
                 newpar.err = params[ct].prefitErr[subct]
                 self.pardict[newpar.name] = newpar
 
@@ -900,7 +939,17 @@ cdef class tempopulsar:
 
             return self._dimensionfy(numpy.asarray(_freqs),u.MHz) if self.units else numpy.asarray(_freqs)
 
+    property paramindex:
+        def __get__(self):
+            cdef int [:] _index = <int [:MAX_FIT]>&(self.psr[0].fitinfo.paramIndex[0])
 
+            return numpy.asarray(_index)
+
+    property paramcounters:
+        def __get__(self):
+            cdef int [:] _counters = <int [:MAX_FIT]>&(self.psr[0].fitinfo.paramCounters[0])
+
+            return numpy.asarray(_counters)
     
     # --- Originally loaded value for SAT
     def origSats(self):
@@ -1082,41 +1131,69 @@ cdef class tempopulsar:
             excludeparstate[par] = self[par].fit
             self[par].fit = False
 
-        cdef int i
+        cdef FitInfo fitinfo
+
+        fitinfo.paramCounters[0]   = 0
+        fitinfo.paramDerivs[0]     = t2FitFunc_zero
+        fitinfo.updateFunctions[0] = t2UpdateFunc_zero
+        fitinfo.paramIndex[0]      = param_ZERO
+
+        fitinfo.nParams = 1
+        fitinfo.nConstraints = 0
+
+        for par in self.pars():
+            if self[par].isjump:
+                fitinfo.paramIndex[fitinfo.nParams]      = param_JUMP
+                fitinfo.paramCounters[fitinfo.nParams]   = self[par].subct
+                fitinfo.paramDerivs[fitinfo.nParams]     = t2FitFunc_jump
+                fitinfo.updateFunctions[fitinfo.nParams] = t2UpdateFunc_jump
+                fitinfo.nParams = fitinfo.nParams + 1
+            else:
+                t2fit_fillOneParameterFitInfo(&self.psr[0],self[par].ct,self[par].subct,fitinfo)
+                # the function already increases nParams
+
+        try:
+            assert fitinfo.nParams == self.ndim + 1
+        except:
+            print("Number of fitinfo parameters ({}) does not match fit parameters ({}).".format(fitinfo.nParams,self.ndim+1))
+            raise
+
         cdef numpy.ndarray[double,ndim=2] ret = numpy.zeros((self.nobs,self.ndim+1),'d')
 
         cdef long double epoch = self.psr[0].param[param_pepoch].val[0]
         cdef observation *obsns = self.psr[0].obsn
 
-        # the +1 is because tempo2 always fits for an arbitrary offset...
-        cdef int ma = self.ndim + 1
-
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
 
-        for i in range(self.nobs):
-            FITfuncs(obsns[i].bat - epoch,&ret[i,0],ma,&self.psr[0],i,0)
-
-        cdef numpy.ndarray[double, ndim=1] dev, err
+        cdef unsigned int idata, ipar
+        for idata in range(self.nobs):
+            for ipar in range(self.ndim + 1):
+                ret[idata][ipar] = fitinfo.paramDerivs[ipar](&self.psr[0],0,obsns[idata].bbat - epoch,idata,fitinfo.paramIndex[ipar],fitinfo.paramCounters[ipar])
 
         if fixunits:
-            dev, err = numpy.zeros(ma,'d'), numpy.ones(ma,'d')
+            dev, err = numpy.zeros(self.ndim + 1,'d'), numpy.ones(self.ndim + 1,'d')
 
             fp = self.pars()
             save = [self[p].err for p in fp]
 
-            updateParameters(&self.psr[0],0,&dev[0],&err[0])
+            for ipar in range(self.ndim + 1):
+                fitinfo.updateFunctions[ipar](&self.psr[0],0,fitinfo.paramIndex[ipar],fitinfo.paramCounters[ipar],dev[ipar],err[ipar])
+
             dev[0], dev[1:]  = 1.0, [self[p].err for p in fp]
 
             for p,v in zip(fp,save):
                 self[p].err = v
 
-            for i in range(ma):
-                ret[:,i] /= dev[i]
+            for i in range(self.ndim + 1):
+                if dev[i] == 0:
+                    print("Warning: design-matrix normalization coefficient is 0 for parameter {}. Proceeding without normalizing.")
+                else:
+                    ret[:,i] /= dev[i]
 
         if fixsigns:
             for i, par in enumerate(self.pars()):
-                if (par[0] == 'F' and par[1] in '0123456789') or (par[:4] == 'JUMP'):
+                if (par[0] == 'F' and par[1] in '0123456789'):
                     ret[:,i+1] *= -1
 
         # restore the fit state of excluded pars
@@ -1318,22 +1395,72 @@ cdef class tempopulsar:
 
         return numpy.asarray(_pulseN)
 
-    # --- tempo2 fit
-    #     CHECK: does mean removal affect the answer?
+    def _fit(self,renormalize=True):
+        # exclude deleted points
+        mask = self.deleted == 0
+
+        # limit points on either end if START and FINISH are marked as "fit"
+        if self['START'].set and self['START'].fit:
+            mask = mask & (self.stoas >= self['START'].val)
+
+        if self['FINISH'].set and self['FINISH'].fit:        
+            mask = mask & (self.stoas <= self['FINISH'].val)
+
+        res, err = self.residuals(removemean=False)[mask], self.toaerrs[mask]
+        M = self.designmatrix(updatebats=False,incoffset=True)[mask,:]
+        
+        C = numpy.diag((err * 1e-6)**2)
+
+        norm = numpy.sqrt(numpy.sum(M**2,axis=0))
+        if numpy.any(norm == 0):
+            print("Warning: one or more of the design-matrix columns is null. Disabling renormalization (if active), but fit may fail.")
+            renormalize = False
+
+        if renormalize:
+            M /= norm
+        else:
+            norm = numpy.ones_like(M[0,:])
+    
+        Cinv = numpy.linalg.inv(C)
+        mtcm = numpy.dot(M.T,numpy.dot(Cinv,M))
+        mtcy = numpy.dot(M.T,numpy.dot(Cinv,res))
+    
+        xvar = numpy.linalg.inv(mtcm)
+        
+        c = scipy.linalg.cho_factor(mtcm)
+        xhat = scipy.linalg.cho_solve(c,mtcy)
+
+        # compute linearized chisq
+        newres = res - numpy.dot(M,xhat)
+        chisq = numpy.dot(newres,numpy.dot(Cinv,newres))
+
+        # compute absolute estimates, normalized errors, covariance matrix
+        x = xhat/norm; x[1:] += self.vals()
+        err = numpy.sqrt(numpy.diag(xvar)) / norm
+        cov = xvar / numpy.outer(norm,norm)
+
+        # reset tempo2 parameter values
+        self.vals(x[1:])
+        self.errs(err[1:])
+    
+        return x, err, cov, chisq
+
     def fit(self,iters=1):
         """tempopulsar.fit(iters=1)
 
-        Runs `iters` iterations of the tempo2 fit, recomputing
-        barycentric TOAs and residuals each time."""
+        Runs `iters` iterations of the a least-squares fit, using tempo2
+        to compute the design matrix, and recomputing barycentric TOAs
+        and residuals each time. Modifies parameter values and errors
+        accordingly. Returns the tuple (xfit,stderr,covariance,chisq)
+        after the last iteration. Note that these vectors and matrix
+        are (ndim+1)- or (ndim+1)x(ndim+1)-dimensional, with the first
+        row/column corresponding to a constant phase offset referenced
+        to the first TOA (even if that point is not used)."""
 
         for i in range(iters):
-            updateBatsAll(self.psr,self.npsr)
-            formResiduals(self.psr,self.npsr,1)     # 1 to remove the mean
+            ret = self._fit()
 
-            doFit(self.psr,self.npsr,0)
-
-        self.fitchisq = self.psr[0].fitChisq
-        self.fitrms = self.psr[0].rmsPost
+        return ret
 
     # --- chisq
     def chisq(self,removemean='weighted'):

@@ -16,10 +16,13 @@ mkdir -p $TEMPO2
 
 # git clone https://bitbucket.org/psrsoft/tempo2.git
 # git clone https://jellis11@bitbucket.org/jellis11/tempo2.git
-# cd tempo2
-curl -O https://bitbucket.org/jellis11/tempo2/get/master.tar.gz -z master.tar.gz
+
+curl -O https://bitbucket.org/psrsoft/tempo2/get/master.tar.gz -z master.tar.gz
+# curl -O https://bitbucket.org/jellis11/tempo2/get/master.tar.gz -z master.tar.gz
 tar zxvf master.tar.gz
-cd jellis11-tempo2-*
+
+cd psrsoft-tempo2-*
+# cd jellis11-tempo2-*
 
 ./bootstrap
 ./configure --prefix=$prefix
@@ -28,5 +31,5 @@ make && make install
 cp -Rp T2runtime/* $TEMPO2/.
 cd ..
 
-# rm -rf tempo2
-rm -rf jellis11-tempo2-*
+rm -rf psrsoft-tempo2-*
+# rm -rf jellis11-tempo2-*
