@@ -720,6 +720,7 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
     :param beta: Spectral index of power spectram for f << f0
     :param power: Fudge factor for flatness of spectrum turnover
     :param userSpec: User-supplied characteristic strain spectrum 
+                     (first column is freqs, second is spectrum)
     :param npts: Number of points used in interpolation
     :param howml: Lowest frequency is 1/(howml * T) 
     
@@ -802,14 +803,11 @@ def createGWB(psr, Amp, gam, noCorr=False, seed=None, turnover=False,
 
     elif userSpec is not None:
         
-        fmin = 1.0/(stop - start - 2.0*86400.0)
-        fmax = 1.0/(14.0*86400.0)
-        freqs = fmin * N.linspace(1.0, int(fmax/fmin), int(fmax/fmin))
-        
-        if len(userSpec) != len(freqs):
+        freqs = userSpec[:,0]
+        if len(userSpec[:,0]) != len(freqs):
             raise ValueError("Number of supplied spectral points does not match number of frequencies!")
         else:
-            fspec_in = interp.interp1d(N.log10(freqs), N.log10(userSpec), kind='linear')
+            fspec_in = interp.interp1d(N.log10(freqs), N.log10(userSpec[:,1]), kind='linear')
             fspec_ex = extrap1d(fspec_in)
             hcf = 10.0**fspec_ex(N.log10(f))
 
