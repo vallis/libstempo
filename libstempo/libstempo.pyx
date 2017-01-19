@@ -156,6 +156,7 @@ cdef extern from "tempo2.h":
         char fname[MAX_FILELEN] # name of datafile giving TOA
         char telID[100]        # telescope ID
         double earth_ssb[6]    # Earth center wrt SSB 
+        double planet_ssb[9][6]    # Planet centers wrt SSB
         double observatory_earth[6]    # Obs wrt Earth center
         double psrPos[3]       # Unit vector to the pulsar position
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
@@ -901,6 +902,70 @@ cdef class tempopulsar:
             _earth_ssb.strides[1] = sizeof(double)
 
             return numpy.asarray(_earth_ssb)
+
+    property mercury_ssb:
+        def __get__(self):
+            cdef double [:,:] _mercury_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[0][0])
+            _mercury_ssb.strides[0] = sizeof(observation)
+            _mercury_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_mercury_ssb)
+
+    property venus_ssb:
+        def __get__(self):
+            cdef double [:,:] _venus_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[1][0])
+            _venus_ssb.strides[0] = sizeof(observation)
+            _venus_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_venus_ssb)
+
+    property mars_ssb:
+        def __get__(self):
+            cdef double [:,:] _mars_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[3][0])
+            _mars_ssb.strides[0] = sizeof(observation)
+            _mars_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_mars_ssb)
+
+    property jupiter_ssb:
+        def __get__(self):
+            cdef double [:,:] _jupiter_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[4][0])
+            _jupiter_ssb.strides[0] = sizeof(observation)
+            _jupiter_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_jupiter_ssb)
+
+    property saturn_ssb:
+        def __get__(self):
+            cdef double [:,:] _saturn_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[5][0])
+            _saturn_ssb.strides[0] = sizeof(observation)
+            _saturn_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_saturn_ssb)
+
+    property uranus_ssb:
+        def __get__(self):
+            cdef double [:,:] _uranus_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[6][0])
+            _uranus_ssb.strides[0] = sizeof(observation)
+            _uranus_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_uranus_ssb)
+
+    property neptune_ssb:
+        def __get__(self):
+            cdef double [:,:] _neptune_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[7][0])
+            _neptune_ssb.strides[0] = sizeof(observation)
+            _neptune_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_neptune_ssb)
+
+    property pluto_ssb:
+        def __get__(self):
+            cdef double [:,:] _pluto_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].planet_ssb[8][0])
+            _pluto_ssb.strides[0] = sizeof(observation)
+            _pluto_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_pluto_ssb)
 
     property observatory_earth:
         def __get__(self):
