@@ -194,6 +194,7 @@ cdef extern from "tempo2.h":
         char *binaryModel
         char *JPL_EPHEMERIS
         char *ephemeris
+        int useCalceph
         int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
         double posPulsar[3]     # 3-unitvector pointing at the pulsar
         # long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
@@ -733,14 +734,28 @@ cdef class tempopulsar:
         def __get__(self):
             return string(self.psr[0].ephemeris)
 
-        def __set__(self,value):
-            value = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
-            model_bytes = value.encode()
+        def __set__(self, value):
 
-            if len(model_bytes) < 100:    
-                stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+            # use calceph version for DE435 and DE436
+            if value in ['DE435', 'DE436']:
+                value = os.environ['TEMPO2'] + '/ephemeris/de{0}t.bsp'.format(value[2:])
+                self.psr[0].useCalceph = 1
+                model_bytes = value.encode()
+
+                if len(model_bytes) < 100:    
+                    stdio.sprintf(self.psr[0].ephemeris,"%s",<char *>model_bytes)
+                else:
+                    raise ValueError
+
+            # Use standard version
             else:
-                raise ValueError
+                value = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
+                model_bytes = value.encode()
+
+                if len(model_bytes) < 100:    
+                    stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+                else:
+                    raise ValueError
 
     # TO DO: see if setting works
     property clock:
