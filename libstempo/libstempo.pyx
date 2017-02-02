@@ -136,9 +136,9 @@ cdef extern from "tempo2.h":
 
     ctypedef struct observation:
         long double sat        # site arrival time
-        long double origsat	#Backup of SAT
-        long double sat_day	#Just the Day part
-        long double sat_sec	#Just the Sec part
+        long double origsat	   # Backup of SAT
+        long double sat_day	   # Just the Day part
+        long double sat_sec	   # Just the Sec part
         long double bat        # barycentric arrival time
         long double bbat       # barycentric arrival time
         long double batCorr    #update from sat-> bat 
@@ -162,6 +162,7 @@ cdef extern from "tempo2.h":
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
         long double torb       # Combined binary delay
         long long pulseN       # Pulse number
+        long double roemer     # Roemer delay
 
     ctypedef int param_label
 
@@ -908,6 +909,15 @@ cdef class tempopulsar:
             _stoas.strides[0] = sizeof(observation)
 
             return numpy.asarray(_stoas)
+
+    property roemer:
+        """Return Roemer delay in seconds as a numpy.longdouble array."""
+
+        def __get__(self):
+            cdef long double [:] _roemer = <long double [:self.nobs]>&(self.psr[0].obsn[0].roemer)
+            _roemer.strides[0] = sizeof(observation)
+
+            return numpy.asarray(_roemer)
 
     # TO DO: need to dimensionfy as a Table
     property earth_ssb:
