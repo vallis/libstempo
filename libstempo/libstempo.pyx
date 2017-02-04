@@ -759,6 +759,13 @@ cdef class tempopulsar:
             # write
             if len(model_bytes) < 100:    
                 stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+
+                # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS
+                # for calceph.
+                if self.psr[0].useCalceph:
+                    stdio.sprintf(self.psr[0].ephemeris,"%s",
+                                  <char *>model_bytes)
+
             else:
                 raise ValueError
 
