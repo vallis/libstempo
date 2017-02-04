@@ -548,8 +548,9 @@ cdef class tempopulsar:
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
-    def __cinit__(self,parfile,timfile=None,warnings=False,fixprefiterrors=True,
-                  dofit=False,maxobs=None,units=False):
+    def __cinit__(self, parfile, timfile=None, warnings=False, 
+                  fixprefiterrors=True, dofit=False, maxobs=None,
+                  units=False, ephem=None):
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -580,6 +581,10 @@ cdef class tempopulsar:
 
         if not warnings:
             self.psr.noWarnings = 2         # do not show some warnings
+
+        # set ephemeris if given
+        if ephem is not None:
+            self.ephemeris = ephem
 
         # preprocess the data
 
@@ -736,6 +741,8 @@ cdef class tempopulsar:
             return string(self.psr[0].ephemeris)
 
         def __set__(self, value):
+            model_bytes = value.encode()
+            stdio.sprintf(self.psr[0].ephemeris,"%s",<char *>model_bytes)
 
             # use calceph version for DE435 and DE436
             if value in ['DE435', 'DE436']:
@@ -743,20 +750,17 @@ cdef class tempopulsar:
                 self.psr[0].useCalceph = 1
                 model_bytes = value.encode()
 
-                if len(model_bytes) < 100:    
-                    stdio.sprintf(self.psr[0].ephemeris,"%s",<char *>model_bytes)
-                else:
-                    raise ValueError
-
             # Use standard version
             else:
                 value = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
+                self.psr[0].useCalceph = 0
                 model_bytes = value.encode()
 
-                if len(model_bytes) < 100:    
-                    stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
-                else:
-                    raise ValueError
+            # write
+            if len(model_bytes) < 100:    
+                stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+            else:
+                raise ValueError
 
     # TO DO: see if setting works
     property clock:
