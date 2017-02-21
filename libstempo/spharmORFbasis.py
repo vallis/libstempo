@@ -9,7 +9,6 @@ Code contributions by Rutger van Haasteren (piccard), Justin Ellis (PAL/PAL2), a
 
 from __future__ import division
 import math
-import matplotlib.pyplot as plt
 import numpy as np
 from math import factorial, sqrt, sin, cos, tan, acos, atan, pi, log
 from cmath import exp
