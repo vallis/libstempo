@@ -163,6 +163,7 @@ cdef extern from "tempo2.h":
         long double torb       # Combined binary delay
         long long pulseN       # Pulse number
         long double roemer     # Roemer delay
+        double shapiroDelaySun     # Shapiro delay caused by the Sun
 
     ctypedef int param_label
 
@@ -929,6 +930,15 @@ cdef class tempopulsar:
             _roemer.strides[0] = sizeof(observation)
 
             return numpy.asarray(_roemer)
+
+    property shapiro_sun:
+        """Return Solar Shapiro delay in seconds as a numpy.double array."""
+
+        def __get__(self):
+            cdef double [:] _shapiro_sun = <double [:self.nobs]>&(self.psr[0].obsn[0].shapiroDelaySun)
+            _shapiro_sun.strides[0] = sizeof(observation)
+
+            return numpy.asarray(_shapiro_sun)
 
     # TO DO: need to dimensionfy as a Table
     property earth_ssb:
