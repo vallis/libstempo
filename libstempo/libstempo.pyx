@@ -1532,9 +1532,9 @@ cdef class tempopulsar:
         else:
             norm = numpy.ones_like(M[0,:])
     
-        Cinv = numpy.linalg.inv(C)
-        mtcm = numpy.dot(M.T,numpy.dot(Cinv,M))
-        mtcy = numpy.dot(M.T,numpy.dot(Cinv,res))
+        cinv = 1/(err * 1e-6)**2
+        mtcm = numpy.dot(M.T,cinv[:,numpy.newaxis]*M)
+        mtcy = numpy.dot(M.T,cinv*res)
     
         xvar = numpy.linalg.inv(mtcm)
         
@@ -1543,7 +1543,7 @@ cdef class tempopulsar:
 
         # compute linearized chisq
         newres = res - numpy.dot(M,xhat)
-        chisq = numpy.dot(newres,numpy.dot(Cinv,newres))
+        chisq = numpy.dot(newres,cinv*newres)
 
         # compute absolute estimates, normalized errors, covariance matrix
         x = xhat/norm; x[1:] += self.vals()
