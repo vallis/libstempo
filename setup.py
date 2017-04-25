@@ -85,7 +85,7 @@ else:
     linkArgs = []
 
 setup(name = 'libstempo',
-      version = '2.3.2', # remember to change it in __init__.py.in
+      version = '2.3.3', # remember to change it in __init__.py.in
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
