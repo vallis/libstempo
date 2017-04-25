@@ -112,6 +112,8 @@ cdef extern from "tempo2.h":
     enum: MAX_JUMPS
     enum: MAX_FLAG_LEN
     enum: MAX_FIT
+    enum: T2C_TEMPO
+    enum: T2C_IAU2000B
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
@@ -194,6 +196,8 @@ cdef extern from "tempo2.h":
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
+        int t2cMethod               # How to transform from terrestrial to celestial coords. Set in parfile with T2CMETHOD
+                                    # tempo2 supports T2C_IAU2000B (default) and T2C_TEMPO 
         char *JPL_EPHEMERIS
         char *ephemeris
         int useCalceph
@@ -551,7 +555,7 @@ cdef class tempopulsar:
 
     def __cinit__(self, parfile, timfile=None, warnings=False, 
                   fixprefiterrors=True, dofit=False, maxobs=None,
-                  units=False, ephem=None):
+                  units=False, ephem=None, t2cmethod=None):
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -582,6 +586,15 @@ cdef class tempopulsar:
 
         if not warnings:
             self.psr.noWarnings = 2         # do not show some warnings
+
+        # set conversion from terrestrial to celestial
+        if t2cmethod is not None:
+            if t2cmethod == 'TEMPO':
+                self.psr[0].t2cMethod = T2C_TEMPO
+            elif t2cmethod == 'IAU2000B':
+                self.psr[0].t2cMethod = T2C_IAU2000B
+            else:
+                raise ValueError("Unknown T2CMETHOD '{}'.".format(t2cmethod))
 
         # set ephemeris if given
         if ephem is not None:
@@ -741,34 +754,42 @@ cdef class tempopulsar:
         def __get__(self):
             return string(self.psr[0].ephemeris)
 
-        def __set__(self, value):
-            model_bytes = value.encode()
-            stdio.sprintf(self.psr[0].ephemeris,"%s",<char *>model_bytes)
+        def __set__(self,value):
+            def seteph(filename,usecalceph=False):
+                model_bytes = filename.encode()
+            
+                if len(model_bytes) < MAX_FILELEN:
+                    stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+                    
+                    # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS for calceph.
+                    stdio.sprintf(self.psr[0].ephemeris,    "%s",<char *>model_bytes)
 
-            # use calceph version for DE435 and DE436
-            if value in ['DE435', 'DE436']:
-                value = os.environ['TEMPO2'] + '/ephemeris/de{0}t.bsp'.format(value[2:])
-                self.psr[0].useCalceph = 1
-                model_bytes = value.encode()
+                    self.psr[0].useCalceph = int(usecalceph)
 
-            # Use standard version
-            else:
-                value = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
-                self.psr[0].useCalceph = 0
-                model_bytes = value.encode()
+                    if usecalceph and self.psr[0].t2cMethod == T2C_TEMPO:
+                        print("Warning: calceph ephemerides are incompatible with T2CMETHOD=TEMPO. Reverting to IAU2000B.")
+                        self.psr[0].t2cMethod = T2C_IAU2000B
+                else:
+                    raise ValueError("Ephemeris filename '{}' too long for tempo2.".format(filename))
 
-            # write
-            if len(model_bytes) < 100:    
-                stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+            # by default, try the old-style version (e.g., DE430.1950.2000)
+            oldstyle = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
+            if os.path.isfile(oldstyle):
+                seteph(oldstyle,False)
+                return
 
-                # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS
-                # for calceph.
-                if self.psr[0].useCalceph:
-                    stdio.sprintf(self.psr[0].ephemeris,"%s",
-                                  <char *>model_bytes)
+            # next, look for a Spice file in the tempo2 directory
+            newstyle = os.environ['TEMPO2'] + '/ephemeris/de{0}t.bsp'.format(value[2:5])
+            if os.path.isfile(newstyle):
+                seteph(newstyle,True)
+                return
 
-            else:
-                raise ValueError
+            # last, look in the current directory and assume Spice
+            if os.path.isfile(value):
+                seteph(value,True)
+                return
+
+            raise ValueError("Cannot find ephemeris file '{}'.".format(value))
 
     # TO DO: see if setting works
     property clock:
