@@ -120,6 +120,9 @@ cdef extern from "tempo2.h":
     enum: param_LAST
     enum: param_ZERO
     enum: param_JUMP
+    enum: MAX_T2EFAC
+    enum: MAX_T2EQUAD
+    enum: MAX_TNECORR
 
     cdef char *TEMPO2_VERSION "TEMPO2_h_VER"
 
@@ -210,6 +213,23 @@ cdef extern from "tempo2.h":
         double rmsPost
         char clock[16]
         FitInfo fitinfo
+
+        int nT2efac
+        char T2efacFlagID[MAX_T2EFAC][MAX_FLAG_LEN]
+        char T2efacFlagVal[MAX_T2EFAC][MAX_FLAG_LEN]
+        double T2efacVal[MAX_T2EFAC]
+
+        double T2globalEfac
+
+        int nT2equad
+        char T2equadFlagID[MAX_T2EQUAD][MAX_FLAG_LEN]
+        char T2equadFlagVal[MAX_T2EQUAD][MAX_FLAG_LEN]
+        double T2equadVal[MAX_T2EQUAD]
+
+        int nTNECORR
+        char TNECORRFlagID[MAX_TNECORR][MAX_FLAG_LEN]
+        char TNECORRFlagVal[MAX_TNECORR][MAX_FLAG_LEN]
+        double TNECORRVal[MAX_TNECORR]
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -520,8 +540,7 @@ cdef class GWB:
 
         return theta, phi, omega, polarization
 
-# this is a Cython extension class; the benefit is that it can hold C attributes,
-# but all attributes must be defined in the code
+noisepar = collections.namedtuple('noisepar',['val','flag','flagval'])
 
 def parse_tempo2version(s):
     """Tempo2 now temporarily has a different version system, so convert"""
@@ -533,6 +552,9 @@ def parse_tempo2version(s):
 
 def tempo2version():
     return StrictVersion(parse_tempo2version(TEMPO2_VERSION))
+
+# this is a Cython extension class; the benefit is that it can hold C attributes,
+# but all attributes must be defined in the code
 
 cdef class tempopulsar:
     cpdef public object parfile
@@ -550,12 +572,16 @@ cdef class tempopulsar:
     cpdef object flagnames_ # a list of all flags that have values
     cpdef object flags_     # a dictionary of numpy arrays with flag values
 
+    cpdef public object noisemodel
+
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
     def __cinit__(self, parfile, timfile=None, warnings=False, 
                   fixprefiterrors=True, dofit=False, maxobs=None,
-                  units=False, ephem=None, t2cmethod=None):
+                  units=False, ephem=None, t2cmethod=None,
+                  noisemodel=False):
+
         # initialize
 
         global MAX_PSR, MAX_OBSN
@@ -574,10 +600,10 @@ cdef class tempopulsar:
         # tim rewriting is not needed with tempo2/readTimfile.C >= 1.22 (date: 2014/06/12 02:25:54),
         # which follows relative paths; closest tempo2.h version is 1.90 (date: 2014/06/24 20:03:34)
         if tempo2version() >= StrictVersion("1.90"):
-            self._readfiles(parfile,timfile)
+            self._readfiles(parfile,timfile,noisemodel=noisemodel)
         else:
             timfile = rewritetim(timfile)
-            self._readfiles(parfile,timfile)
+            self._readfiles(parfile,timfile,noisemodel=noisemodel)
             os.unlink(timfile)
 
         # set tempo2 flags
@@ -622,7 +648,7 @@ cdef class tempopulsar:
             destroyOne(&(self.psr[i]))
             stdlib.free(&(self.psr[i]))
 
-    def _readfiles(self,parfile,timfile=None):
+    def _readfiles(self,parfile,timfile=None,noisemodel=False):
         cdef char parFile[MAX_PSR_VAL][MAX_FILELEN]
         cdef char timFile[MAX_PSR_VAL][MAX_FILELEN]
 
@@ -653,6 +679,40 @@ cdef class tempopulsar:
         stdio.sprintf(timFile[0],"%s",<char *>timfile_bytes)
 
         readParfile(self.psr,parFile,timFile,self.npsr)   # load the parameters    (all pulsars)
+
+        # save noise parameters and reset them in the pulsar structure
+        # so the data is not touched
+
+        if noisemodel:
+            self.noisemodel = OrderedDict()
+
+            for i in range(self.psr[0].nT2efac):
+                name = 'efac_' + string(self.psr[0].T2efacFlagVal[i])
+
+                self.noisemodel[name] = noisepar(val=self.psr[0].T2efacVal[i],
+                                                 flag=string(&self.psr[0].T2efacFlagID[i][1]),
+                                                 flagval=string(self.psr[0].T2efacFlagVal[i]))
+
+            self.psr[0].nT2efac = 0
+
+            for i in range(self.psr[0].nT2equad):
+                name = 'equad_' + string(self.psr[0].T2efacFlagVal[i])
+
+                self.noisemodel[name] = noisepar(val=self.psr[0].T2equadVal[i],
+                                                 flag=string(&self.psr[0].T2equadFlagID[i][1]),
+                                                 flagval=string(self.psr[0].T2equadFlagVal[i]))
+
+            self.psr[0].nT2equad = 0
+
+            for i in range(self.psr[0].nTNECORR):
+                name = 'ecorr_' + string(self.psr[0].T2efacFlagVal[i])
+
+                self.noisemodel[name] = noisepar(val=self.psr[0].TNECORRVal[i],
+                                                 flag=string(&self.psr[0].TNECORRFlagID[i][1]),
+                                                 flagval=string(self.psr[0].TNECORRFlagVal[i]))
+
+            self.psr[0].nTNECORR = 0
+
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
     def _readpars(self,fixprefiterrors=True):
@@ -1527,7 +1587,7 @@ cdef class tempopulsar:
 
         return numpy.asarray(_pulseN)
 
-    def _fit(self,renormalize=True):
+    def _fit(self,renormalize=True,extrapartials=None):
         # exclude deleted points
         mask = self.deleted == 0
 
@@ -1540,9 +1600,16 @@ cdef class tempopulsar:
 
         res, err = self.residuals(removemean=False)[mask], self.toaerrs[mask]
         M = self.designmatrix(updatebats=False,incoffset=True)[mask,:]
-        
-        C = numpy.diag((err * 1e-6)**2)
 
+        # extra partials must be given as an nobs x nextra array, using the native obs ordering         
+        if extrapartials is not None:
+            # may want to do more error checking here
+            extrapar = extrapartials.shape[1]
+            M = numpy.hstack((M,extrapartials[mask,:]))
+        else:
+            extrapar = 0
+
+        # normalize the design matrix
         norm = numpy.sqrt(numpy.sum(M**2,axis=0))
         if numpy.any(norm == 0):
             print("Warning: one or more of the design-matrix columns is null. Disabling renormalization (if active), but fit may fail.")
@@ -1553,6 +1620,21 @@ cdef class tempopulsar:
         else:
             norm = numpy.ones_like(M[0,:])
     
+        # note re noise model: add all relevant equads in quadrature,
+        #                      then multiply by all relevant efacs
+
+        err = err.copy()
+        if self.noisemodel is not None:
+            for equad in [e for k,e in self.noisemodel.items() if k.startswith('equad')]:
+                err[:] = numpy.where(self.flagvals(equad.flag)[mask] == equad.flagval,
+                                     numpy.sqrt(err**2 + equad.val**2),err)
+
+            for efac in [e for k,e in self.noisemodel.items() if k.startswith('efac')]:
+                err[:] = numpy.where(self.flagvals(efac.flag)[mask] == efac.flagval,
+                                     efac.val * err,err)
+
+        # need to do ecorr...
+
         cinv = 1/(err * 1e-6)**2
         mtcm = numpy.dot(M.T,cinv[:,numpy.newaxis]*M)
         mtcy = numpy.dot(M.T,cinv*res)
@@ -1567,17 +1649,17 @@ cdef class tempopulsar:
         chisq = numpy.dot(newres,cinv*newres)
 
         # compute absolute estimates, normalized errors, covariance matrix
-        x = xhat/norm; x[1:] += self.vals()
+        x = xhat/norm; x[1:len(x)-extrapar] += self.vals()
         err = numpy.sqrt(numpy.diag(xvar)) / norm
         cov = xvar / numpy.outer(norm,norm)
 
         # reset tempo2 parameter values
-        self.vals(x[1:])
-        self.errs(err[1:])
+        self.vals(x[1:len(x)-extrapar])
+        self.errs(err[1:len(x)-extrapar])
     
         return x, err, cov, chisq
 
-    def fit(self,iters=1):
+    def fit(self,iters=1,renormalize=True,extrapartials=None):
         """tempopulsar.fit(iters=1)
 
         Runs `iters` iterations of the a least-squares fit, using tempo2
@@ -1590,7 +1672,7 @@ cdef class tempopulsar:
         to the first TOA (even if that point is not used)."""
 
         for i in range(iters):
-            ret = self._fit()
+            ret = self._fit(renormalize=renormalize,extrapartials=extrapartials)
 
         return ret
 
