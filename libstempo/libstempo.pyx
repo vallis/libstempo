@@ -270,6 +270,7 @@ cdef extern from "tempo2.h":
         # TNRedAmp and TNRedGam (RNAMP and RNIDX are converted in readParfile.C)
         double TNRedAmp
         double TNRedGam
+        int TNRedC
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -775,6 +776,9 @@ cdef class tempopulsar:
 
         if self.psr[0].TNRedGam != 0:
             self.noisemodel['gamma'] = self.psr[0].TNRedGam
+
+        if self.psr[0].TNRedC != 0:
+            self.noisemodel['nred'] = self.psr[0].TNRedC
 
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
