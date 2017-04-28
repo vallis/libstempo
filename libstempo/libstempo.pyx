@@ -122,6 +122,9 @@ cdef extern from "tempo2.h":
     enum: param_JUMP
     enum: MAX_T2EFAC
     enum: MAX_T2EQUAD
+    enum: MAX_TNEF
+    enum: MAX_TNEQ
+    enum: MAX_TNSQ
     enum: MAX_TNECORR
 
     cdef char *TEMPO2_VERSION "TEMPO2_h_VER"
@@ -214,22 +217,59 @@ cdef extern from "tempo2.h":
         char clock[16]
         FitInfo fitinfo
 
+        # noise parameters follow
+
+        # T2EFAC
         int nT2efac
         char T2efacFlagID[MAX_T2EFAC][MAX_FLAG_LEN]
         char T2efacFlagVal[MAX_T2EFAC][MAX_FLAG_LEN]
         double T2efacVal[MAX_T2EFAC]
 
+        # GLOBAL_EFAC in timfile???
         double T2globalEfac
 
+        # T2EQUAD
         int nT2equad
         char T2equadFlagID[MAX_T2EQUAD][MAX_FLAG_LEN]
         char T2equadFlagVal[MAX_T2EQUAD][MAX_FLAG_LEN]
         double T2equadVal[MAX_T2EQUAD]
 
+        # TNEF
+        int nTNEF
+        char TNEFFlagID[MAX_TNEF][MAX_FLAG_LEN]
+        char TNEFFlagVal[MAX_TNEF][MAX_FLAG_LEN]
+        double TNEFVal[MAX_TNEF]
+
+        # TNGlobalEF
+        double TNGlobalEF
+
+        # TNEQ
+        int nTNEQ
+        char TNEQFlagID[MAX_TNEQ][MAX_FLAG_LEN]
+        char TNEQFlagVal[MAX_TNEQ][MAX_FLAG_LEN]
+        double TNEQVal[MAX_TNEQ]
+
+        # TNGlobalEQ
+        double TNGlobalEQ
+
+        # addTNGlobalEQ
+        double addTNGlobalEQ
+
+        # TNSQ ???
+        int nTNSQ
+        char TNSQFlagID[MAX_TNSQ][MAX_FLAG_LEN]
+        char TNSQFlagVal[MAX_TNSQ][MAX_FLAG_LEN]
+        double TNSQVal[MAX_TNSQ]
+
+        # ECORR/TNECORR
         int nTNECORR
         char TNECORRFlagID[MAX_TNECORR][MAX_FLAG_LEN]
         char TNECORRFlagVal[MAX_TNECORR][MAX_FLAG_LEN]
         double TNECORRVal[MAX_TNECORR]
+
+        # TNRedAmp and TNRedGam (RNAMP and RNIDX are converted in readParfile.C)
+        double TNRedAmp
+        double TNRedGam
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -579,8 +619,7 @@ cdef class tempopulsar:
 
     def __cinit__(self, parfile, timfile=None, warnings=False, 
                   fixprefiterrors=True, dofit=False, maxobs=None,
-                  units=False, ephem=None, t2cmethod=None,
-                  noisemodel=False):
+                  units=False, ephem=None, t2cmethod=None):
 
         # initialize
 
@@ -600,10 +639,10 @@ cdef class tempopulsar:
         # tim rewriting is not needed with tempo2/readTimfile.C >= 1.22 (date: 2014/06/12 02:25:54),
         # which follows relative paths; closest tempo2.h version is 1.90 (date: 2014/06/24 20:03:34)
         if tempo2version() >= StrictVersion("1.90"):
-            self._readfiles(parfile,timfile,noisemodel=noisemodel)
+            self._readfiles(parfile,timfile)
         else:
             timfile = rewritetim(timfile)
-            self._readfiles(parfile,timfile,noisemodel=noisemodel)
+            self._readfiles(parfile,timfile)
             os.unlink(timfile)
 
         # set tempo2 flags
@@ -648,7 +687,7 @@ cdef class tempopulsar:
             destroyOne(&(self.psr[i]))
             stdlib.free(&(self.psr[i]))
 
-    def _readfiles(self,parfile,timfile=None,noisemodel=False):
+    def _readfiles(self,parfile,timfile=None):
         cdef char parFile[MAX_PSR_VAL][MAX_FILELEN]
         cdef char timFile[MAX_PSR_VAL][MAX_FILELEN]
 
@@ -683,35 +722,59 @@ cdef class tempopulsar:
         # save noise parameters and reset them in the pulsar structure
         # so the data is not touched
 
-        if noisemodel:
-            self.noisemodel = OrderedDict()
+        self.noisemodel = OrderedDict()
 
-            for i in range(self.psr[0].nT2efac):
-                name = 'efac_' + string(self.psr[0].T2efacFlagVal[i])
+        for i in range(self.psr[0].nT2efac):
+            name = 'efac_' + string(self.psr[0].T2efacFlagVal[i])
 
-                self.noisemodel[name] = noisepar(val=self.psr[0].T2efacVal[i],
-                                                 flag=string(&self.psr[0].T2efacFlagID[i][1]),
-                                                 flagval=string(self.psr[0].T2efacFlagVal[i]))
+            self.noisemodel[name] = noisepar(val=self.psr[0].T2efacVal[i],
+                                             flag=string(&self.psr[0].T2efacFlagID[i][1]),
+                                             flagval=string(self.psr[0].T2efacFlagVal[i]))
 
-            self.psr[0].nT2efac = 0
+        self.psr[0].nT2efac = 0
 
-            for i in range(self.psr[0].nT2equad):
-                name = 'equad_' + string(self.psr[0].T2efacFlagVal[i])
+        for i in range(self.psr[0].nT2equad):
+            efacname = 'efac_' + string(self.psr[0].T2equadFlagVal[i])
+            name = 'equad_' + string(self.psr[0].T2equadFlagVal[i])
 
-                self.noisemodel[name] = noisepar(val=self.psr[0].T2equadVal[i],
-                                                 flag=string(&self.psr[0].T2equadFlagID[i][1]),
-                                                 flagval=string(self.psr[0].T2equadFlagVal[i]))
+            value = self.psr[0].T2equadVal[i] * (self.noisemodel[efacname].val if efacname in self.noisemodel else 1.0)
 
-            self.psr[0].nT2equad = 0
+            self.noisemodel[name] = noisepar(val=value,
+                                             flag=string(&self.psr[0].T2equadFlagID[i][1]),
+                                             flagval=string(self.psr[0].T2equadFlagVal[i]))
 
-            for i in range(self.psr[0].nTNECORR):
-                name = 'ecorr_' + string(self.psr[0].T2efacFlagVal[i])
+        self.psr[0].nT2equad = 0
 
-                self.noisemodel[name] = noisepar(val=self.psr[0].TNECORRVal[i],
-                                                 flag=string(&self.psr[0].TNECORRFlagID[i][1]),
-                                                 flagval=string(self.psr[0].TNECORRFlagVal[i]))
+        # should check for conflicts between T2 and TN values?
 
-            self.psr[0].nTNECORR = 0
+        for i in range(self.psr[0].nTNEF):
+            name = 'efac_' + string(self.psr[0].TNEFFlagVal[i])
+
+            self.noisemodel[name] = noisepar(val=self.psr[0].TNEFVal[i],
+                                             flag=string(&self.psr[0].TNEFFlagID[i][1]),
+                                             flagval=string(self.psr[0].TNEFFlagVal[i]))
+
+        for i in range(self.psr[0].nTNEQ):
+            name = 'equad_' + string(self.psr[0].TNEQFlagVal[i])
+
+            value = 1e6 * 10**self.psr[0].TNEQVal[i]
+
+            self.noisemodel[name] = noisepar(val=value,
+                                             flag=string(&self.psr[0].TNEQFlagID[i][1]),
+                                             flagval=string(self.psr[0].TNEQFlagVal[i]))
+
+        for i in range(self.psr[0].nTNECORR):
+            name = 'ecorr_' + string(self.psr[0].TNECORRFlagVal[i])
+
+            self.noisemodel[name] = noisepar(val=self.psr[0].TNECORRVal[i],
+                                             flag=string(&self.psr[0].TNECORRFlagID[i][1]),
+                                             flagval=string(self.psr[0].TNECORRFlagVal[i]))
+
+        if self.psr[0].TNRedAmp != 0:
+            self.noisemodel['log10_ared'] = self.psr[0].TNRedAmp
+
+        if self.psr[0].TNRedGam != 0:
+            self.noisemodel['gamma'] = self.psr[0].TNRedGam
 
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
@@ -1625,13 +1688,13 @@ cdef class tempopulsar:
 
         err = err.copy()
         if self.noisemodel is not None:
-            for equad in [e for k,e in self.noisemodel.items() if k.startswith('equad')]:
-                err[:] = numpy.where(self.flagvals(equad.flag)[mask] == equad.flagval,
-                                     numpy.sqrt(err**2 + equad.val**2),err)
-
             for efac in [e for k,e in self.noisemodel.items() if k.startswith('efac')]:
                 err[:] = numpy.where(self.flagvals(efac.flag)[mask] == efac.flagval,
                                      efac.val * err,err)
+
+            for equad in [e for k,e in self.noisemodel.items() if k.startswith('equad')]:
+                err[:] = numpy.where(self.flagvals(equad.flag)[mask] == equad.flagval,
+                                     numpy.sqrt(err**2 + equad.val**2),err)
 
         # need to do ecorr...
 
