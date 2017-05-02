@@ -4,31 +4,29 @@
 import numpy as np
 
 
-def quantize_fast(times, flags=None, dt=1.0):
+def quantize_fast(times, flags, dt=1.0):
     isort = np.argsort(times)
 
     bucket_ref = [times[isort[0]]]
     bucket_ind = [[isort[0]]]
 
     for i in isort[1:]:
-        if times[i] - bucket_ref[-1] < dt:
+        if times[i] - bucket_ref[-1] < dt and flags[i]!='':
             bucket_ind[-1].append(i)
         else:
             bucket_ref.append(times[i])
             bucket_ind.append([i])
 
-    avetoas = N.array([np.mean(times[l]) for l in bucket_ind],'d')
-    if flags is not None:
-        aveflags = np.array([flags[l[0]] for l in bucket_ind])
+    avetoas = np.array([np.mean(times[l]) for l in bucket_ind],'d')
 
-    U = N.zeros((len(times), len(bucket_ind)),'d')
+    # only keep epochs with 2 or more TOAs
+    bucket_ind = [ind for ind in bucket_ind if len(ind) >= 2]
+
+    U = np.zeros((len(times), len(bucket_ind)),'d')
     for i,l in enumerate(bucket_ind):
         U[l,i] = 1
 
-    if flags is not None:
-        return avetoas, aveflags, U
-    else:
-        return avetoas, U
+    return avetoas, U
 
 
 def create_fourier_design_matrix(t, nmodes, freq=False, Tspan=None,
@@ -85,4 +83,5 @@ def powerlaw(f, log10_A=-16, gamma=5):
     :param gamma: Spectral index of red noise process
     """
 
-    return (10**log10_A)**2 / 12.0 / np.pi**2 * const.fyr**(gamma-3) * f**(-gamma)
+    fyr = 1 / 3.16e7
+    return (10**log10_A)**2 / 12.0 / np.pi**2 * fyr**(gamma-3) * f**(-gamma)
