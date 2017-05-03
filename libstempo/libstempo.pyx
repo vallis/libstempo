@@ -1677,7 +1677,6 @@ cdef class tempopulsar:
 
         err = err.copy()
         phiinv = numpy.zeros(M.shape[1])
-        print 'Timing Model M:', M.shape
         if self.noisemodel is not None:
             for efac in [e for k,e in self.noisemodel.items() if k.startswith('efac')]:
                 err[:] = numpy.where(self.flagvals(efac.flag)[mask] == efac.flagval,
@@ -1690,27 +1689,22 @@ cdef class tempopulsar:
             # expand M matrix and create prior vector for extra noise
             if (self.noisemodel.get('log10_ared') is not None and
                     self.noisemodel.get('gamma') is not None):
-                print 'Start Red'
                 nred = self.noisemodel.get('nred', 100)
                 F, Ffreqs = utils.create_fourier_design_matrix(toas, nred, freq=True)
-                print 'Red Noise M:', F.shape
                 phi = utils.powerlaw(Ffreqs, log10_A=self.noisemodel['log10_ared'],
                                      gamma=self.noisemodel['gamma']) * Ffreqs[0]
                 phiinv = numpy.concatenate((phiinv, 1/phi))
                 M = numpy.hstack((M, F))
 
             if any(k.startswith('ecorr') for k in self.noisemodel):
-                print 'Start ECORR'
                 Umats = []
                 for ecorr in [e for k,e in self.noisemodel.items() if k.startswith('ecorr')]:
-                    print ecorr.flag, ecorr.flagval, ecorr.val
                     flags = numpy.where(self.flagvals(ecorr.flag)[mask]==ecorr.flagval,
                                         self.flagvals(ecorr.flag), '')
                     _, U = utils.quantize_fast(toas, flags, dt=1.0)
                     Umats.append(U)
                     phi = numpy.ones(U.shape[1]) * (ecorr.val*1e-6)**2
                     phiinv = numpy.concatenate((phiinv, 1/phi))
-                print 'ECORR M:', numpy.hstack(Umats).shape
                 M = numpy.hstack((M, numpy.hstack(Umats)))
 
         # normalize the design matrix
@@ -1728,15 +1722,9 @@ cdef class tempopulsar:
             norm = numpy.ones_like(M[0,:])
 
         cinv = 1/(err * 1e-6)**2
-        mtcm = numpy.dot(M.T, cinv[:,None]*M) 
+        mtcm = numpy.dot(M.T, cinv[:,None]*M)
         mtcm += numpy.diag(phiinv)
         mtcy = numpy.dot(M.T, cinv*res)
-
-        #u, s, _ = numpy.linalg.svd(mtcm)
-        #sinv = 1/s
-        #sinv[s/s[0]<1e-16] = 0
-        #xhat = numpy.dot(u, numpy.dot(u.T, mtcy)*sinv)
-        #xvar = numpy.dot(u, sinv[:,None]*u.T)
 
         c = scipy.linalg.cho_factor(mtcm)
         xhat = scipy.linalg.cho_solve(c, mtcy)
