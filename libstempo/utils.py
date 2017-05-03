@@ -17,11 +17,10 @@ def quantize_fast(times, flags, dt=1.0):
             bucket_ref.append(times[i])
             bucket_ind.append([i])
 
-    avetoas = np.array([np.mean(times[l]) for l in bucket_ind],'d')
-
     # only keep epochs with 2 or more TOAs
     bucket_ind = [ind for ind in bucket_ind if len(ind) >= 2]
 
+    avetoas = np.array([np.mean(times[l]) for l in bucket_ind],'d')
     U = np.zeros((len(times), len(bucket_ind)),'d')
     for i,l in enumerate(bucket_ind):
         U[l,i] = 1

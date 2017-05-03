@@ -1688,9 +1688,9 @@ cdef class tempopulsar:
                                      numpy.sqrt(err**2 + equad.val**2),err)
 
             # expand M matrix and create prior vector for extra noise
-            print 'Start Red'
             if (self.noisemodel.get('log10_ared') is not None and
                     self.noisemodel.get('gamma') is not None):
+                print 'Start Red'
                 nred = self.noisemodel.get('nred', 100)
                 F, Ffreqs = utils.create_fourier_design_matrix(toas, nred, freq=True)
                 print 'Red Noise M:', F.shape
@@ -1703,6 +1703,7 @@ cdef class tempopulsar:
                 print 'Start ECORR'
                 Umats = []
                 for ecorr in [e for k,e in self.noisemodel.items() if k.startswith('ecorr')]:
+                    print ecorr.flag, ecorr.flagval, ecorr.val
                     flags = numpy.where(self.flagvals(ecorr.flag)[mask]==ecorr.flagval,
                                         self.flagvals(ecorr.flag), '')
                     _, U = utils.quantize_fast(toas, flags, dt=1.0)
@@ -1727,8 +1728,15 @@ cdef class tempopulsar:
             norm = numpy.ones_like(M[0,:])
 
         cinv = 1/(err * 1e-6)**2
-        mtcm = numpy.dot(M.T, cinv[:,None]*M) + numpy.diag(phiinv)
+        mtcm = numpy.dot(M.T, cinv[:,None]*M) 
+        mtcm += numpy.diag(phiinv)
         mtcy = numpy.dot(M.T, cinv*res)
+
+        #u, s, _ = numpy.linalg.svd(mtcm)
+        #sinv = 1/s
+        #sinv[s/s[0]<1e-16] = 0
+        #xhat = numpy.dot(u, numpy.dot(u.T, mtcy)*sinv)
+        #xvar = numpy.dot(u, sinv[:,None]*u.T)
 
         c = scipy.linalg.cho_factor(mtcm)
         xhat = scipy.linalg.cho_solve(c, mtcy)
