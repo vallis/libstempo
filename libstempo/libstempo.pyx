@@ -781,6 +781,7 @@ cdef class tempopulsar:
 
         if self.psr[0].TNRedC != 0:
             self.noisemodel['nred'] = self.psr[0].TNRedC
+            
 
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
@@ -1656,7 +1657,7 @@ cdef class tempopulsar:
 
         return numpy.asarray(_pulseN)
 
-    def _fit(self, renormalize=True, extrapartials=None):
+    def _fit(self, renormalize=True, extrapartials=None, include_noise=True):
         # exclude deleted points
         mask = self.deleted == 0
 
@@ -1681,7 +1682,7 @@ cdef class tempopulsar:
 
         err = err.copy()
         phiinv = numpy.zeros(M.shape[1])
-        if self.noisemodel is not None:
+        if self.noisemodel is not None and include_noise:
             for efac in [e for k,e in self.noisemodel.items() if k.startswith('efac')]:
                 err[:] = numpy.where(self.flagvals(efac.flag)[mask] == efac.flagval,
                                      efac.val * err,err)
@@ -1750,7 +1751,7 @@ cdef class tempopulsar:
 
         return x, err, cov, chisq
 
-    def fit(self,iters=1, renormalize=True, extrapartials=None):
+    def fit(self,iters=1, renormalize=True, extrapartials=None, include_noise=True):
         """tempopulsar.fit(iters=1)
 
         Runs `iters` iterations of the a least-squares fit, using tempo2
@@ -1763,7 +1764,9 @@ cdef class tempopulsar:
         to the first TOA (even if that point is not used)."""
 
         for i in range(iters):
-            ret = self._fit(renormalize=renormalize,extrapartials=extrapartials)
+            ret = self._fit(renormalize=renormalize,
+                            extrapartials=extrapartials,
+                            include_noise=include_noise)
 
         return ret
 
