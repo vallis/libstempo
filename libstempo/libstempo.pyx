@@ -781,7 +781,7 @@ cdef class tempopulsar:
 
         if self.psr[0].TNRedC != 0:
             self.noisemodel['nred'] = self.psr[0].TNRedC
-            
+
 
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
@@ -903,7 +903,11 @@ cdef class tempopulsar:
                     raise ValueError("Ephemeris filename '{}' too long for tempo2.".format(filename))
 
             # by default, try the old-style version (e.g., DE430.1950.2000)
-            oldstyle = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
+            if value == 'DE414':
+                dates = '1960.2020'
+            else:
+                dates = '1950.2050'
+            oldstyle = os.environ['TEMPO2'] + '/ephemeris/{0}.{1}'.format(value, dates)
             if os.path.isfile(oldstyle):
                 seteph(oldstyle,False)
                 return
