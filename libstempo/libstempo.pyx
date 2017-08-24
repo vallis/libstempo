@@ -13,7 +13,7 @@ except ImportError:
 
 if sys.version_info[0] < 3:
     from itertools import izip as zip
-    
+
     string = lambda s: s
     string_dtype = 'S'
 else:
@@ -50,7 +50,7 @@ try:
     lts = astropy.units.def_unit(['lightsecond','ls','lts'],astropy.constants.c * u.s)
 
     map_units = {
-                 'F0': u.Hz,'F1': u.Hz/u.s,'F2': u.Hz/u.s**2, 
+                 'F0': u.Hz,'F1': u.Hz/u.s,'F2': u.Hz/u.s**2,
                  'RAJ': u.rad,'DECJ': u.rad,'ELONG': u.deg,'ELAT': u.deg,
                  'PMRA': u.mas / u.yr,'PMDEC': u.mas / u.yr,'PMELONG': u.mas / u.yr,'PMELAT': u.mas / u.yr,
                  'PX': u.mas,
@@ -76,12 +76,14 @@ except:
 
 from functools import wraps
 
+from . import utils
+
 # return numpy array as astropy table with unit
 def dimensionfy(unit):
     def dimensionfy_decorator(func):
         def dimensionfy_wrapper(*args,**kwargs):
             array = func(*args,**kwargs)
-            
+
             if args[0].units:
                 return Quantity(array,unit=unit,copy=False)
             else:
@@ -149,7 +151,7 @@ cdef extern from "tempo2.h":
         long double sat_sec	   # Just the Sec part
         long double bat        # barycentric arrival time
         long double bbat       # barycentric arrival time
-        long double batCorr    #update from sat-> bat 
+        long double batCorr    #update from sat-> bat
         long double pet        # pulsar emission time
         int deleted            # 1 if observation deleted, -1 if not in fit
         long double prefitResidual
@@ -163,7 +165,7 @@ cdef extern from "tempo2.h":
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
         char fname[MAX_FILELEN] # name of datafile giving TOA
         char telID[100]        # telescope ID
-        double earth_ssb[6]    # Earth center wrt SSB 
+        double earth_ssb[6]    # Earth center wrt SSB
         double planet_ssb[9][6]    # Planet centers wrt SSB
         double observatory_earth[6]    # Obs wrt Earth center
         double psrPos[3]       # Unit vector to the pulsar position
@@ -203,7 +205,7 @@ cdef extern from "tempo2.h":
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
         int t2cMethod               # How to transform from terrestrial to celestial coords. Set in parfile with T2CMETHOD
-                                    # tempo2 supports T2C_IAU2000B (default) and T2C_TEMPO 
+                                    # tempo2 supports T2C_IAU2000B (default) and T2C_TEMPO
         char *JPL_EPHEMERIS
         char *ephemeris
         int useCalceph
@@ -487,7 +489,7 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
     return newpar
 
 
-# TODO: check if consistent with new API 
+# TODO: check if consistent with new API
 cdef class GWB:
     cdef gwSrc *gw
     cdef int ngw
@@ -563,7 +565,7 @@ cdef class GWB:
         res[:] = res[:] - numpy.mean(res)
 
         return res
-        
+
     def add_gwb(self,tempopulsar pulsar,distance=1):
         pulsar.stoas[:] += self.gwb_sig(pulsar, distance) / 86400.0
 
@@ -618,7 +620,7 @@ cdef class tempopulsar:
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
-    def __cinit__(self, parfile, timfile=None, warnings=False, 
+    def __cinit__(self, parfile, timfile=None, warnings=False,
                   fixprefiterrors=True, dofit=False, maxobs=None,
                   units=False, ephem=None, t2cmethod=None):
 
@@ -780,6 +782,7 @@ cdef class tempopulsar:
         if self.psr[0].TNRedC != 0:
             self.noisemodel['nred'] = self.psr[0].TNRedC
 
+
         readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
     def _readpars(self,fixprefiterrors=True):
@@ -870,7 +873,7 @@ cdef class tempopulsar:
         def __set__(self,value):
             model_bytes = value.encode()
 
-            if len(model_bytes) < 100:    
+            if len(model_bytes) < 100:
                 stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>model_bytes)
             else:
                 raise ValueError
@@ -884,10 +887,10 @@ cdef class tempopulsar:
         def __set__(self,value):
             def seteph(filename,usecalceph=False):
                 model_bytes = filename.encode()
-            
+
                 if len(model_bytes) < MAX_FILELEN:
                     stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
-                    
+
                     # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS for calceph.
                     stdio.sprintf(self.psr[0].ephemeris,    "%s",<char *>model_bytes)
 
@@ -900,7 +903,11 @@ cdef class tempopulsar:
                     raise ValueError("Ephemeris filename '{}' too long for tempo2.".format(filename))
 
             # by default, try the old-style version (e.g., DE430.1950.2000)
-            oldstyle = os.environ['TEMPO2'] + '/ephemeris/{0}.1950.2050'.format(value)
+            if value == 'DE414':
+                dates = '1960.2020'
+            else:
+                dates = '1950.2050'
+            oldstyle = os.environ['TEMPO2'] + '/ephemeris/{0}.{1}'.format(value, dates)
             if os.path.isfile(oldstyle):
                 seteph(oldstyle,False)
                 return
@@ -993,11 +1000,11 @@ cdef class tempopulsar:
 
         Notes:
 
-        - Passing values as anything else than numpy longdoubles may result in loss of precision. 
+        - Passing values as anything else than numpy longdoubles may result in loss of precision.
         - Not all parameters in the selection need to be set.
         - Setting an unset parameter sets its `set` flag (obviously).
         - Unlike in earlier libstempo versions, setting a parameter does not set its error to zero."""
-        
+
         if values is None:
             if self.units:
                 return numpy.array([self.pardict[par].val for par in self.pars(which)],numpy.object)
@@ -1034,7 +1041,7 @@ cdef class tempopulsar:
     def _timeify(self,array):
         if self.units:
             if self.clock[:2] == 'TT':
-                timescale = 'tt'  
+                timescale = 'tt'
             elif self.clock[:3] in ['TAI','UTC']:
                 timescale = self.clock[:3].lower()
             else:
@@ -1209,7 +1216,7 @@ cdef class tempopulsar:
             cdef int [:] _counters = <int [:MAX_FIT]>&(self.psr[0].fitinfo.paramCounters[0])
 
             return numpy.asarray(_counters)
-    
+
     # --- Originally loaded value for SAT
     def origSats(self):
         """tempopulsar.origSats()
@@ -1231,7 +1238,7 @@ cdef class tempopulsar:
         You get a copy of the current values."""
 
         cdef long double [:] _satDays = <long double [:self.nobs]>&(self.psr[0].obsn[0].sat_day)
-        _satDays.strides[0] = sizeof(observation) 
+        _satDays.strides[0] = sizeof(observation)
 
         return self._dimensionfy(numpy.asarray(_satDays),u.s) if self.units else numpy.asarray(_satDays)
 
@@ -1301,8 +1308,8 @@ cdef class tempopulsar:
 
     # --- flags
     def flags(self):
-        """Returns the list of flags defined in this dataset (for at least some observations).""" 
-        
+        """Returns the list of flags defined in this dataset (for at least some observations)."""
+
         return self.flagnames_
 
     # TO DO: setting flags
@@ -1364,13 +1371,13 @@ cdef class tempopulsar:
         return self._dimensionfy(res,u.s) if self.units else res
 
     def formbats(self):
-        formBatsAll(self.psr,self.npsr)    
+        formBatsAll(self.psr,self.npsr)
 
     def updatebats(self):
-        updateBatsAll(self.psr,self.npsr)    
+        updateBatsAll(self.psr,self.npsr)
 
     def formresiduals(self,removemean=True):
-        formResiduals(self.psr,self.npsr,1 if removemean else 0)    
+        formResiduals(self.psr,self.npsr,1 if removemean else 0)
 
     # TO DO: proper dimensionfy as a table
     def designmatrix(self,updatebats=True,fixunits=True,fixsigns=True,incoffset=True):
@@ -1503,7 +1510,7 @@ cdef class tempopulsar:
 
         return numpy.asarray(_torb).copy()
 
-    # TO DO: support setting? 
+    # TO DO: support setting?
     def elevation(self):
         """tempopulsar.elevation()
 
@@ -1622,13 +1629,13 @@ cdef class tempopulsar:
 
     property nphasejumps:
         """Return the number of phase jumps."""
-        
+
         def __get__(self):
             return self.psr[0].nPhaseJump
 
     property pulse_number:
         """Return the pulse number relative to PEPOCH, as detected by tempo2
-        
+
         WARNING: Will be deprecated in the future. Use `pulsenumbers`.
         """
 
@@ -1654,7 +1661,7 @@ cdef class tempopulsar:
 
         return numpy.asarray(_pulseN)
 
-    def _fit(self,renormalize=True,extrapartials=None):
+    def _fit(self, renormalize=True, extrapartials=None, include_noise=True):
         # exclude deleted points
         mask = self.deleted == 0
 
@@ -1662,36 +1669,24 @@ cdef class tempopulsar:
         if self['START'].set and self['START'].fit:
             mask = mask & (self.stoas >= self['START'].val)
 
-        if self['FINISH'].set and self['FINISH'].fit:        
+        if self['FINISH'].set and self['FINISH'].fit:
             mask = mask & (self.stoas <= self['FINISH'].val)
 
         res, err = self.residuals(removemean=False)[mask], self.toaerrs[mask]
+        toas = numpy.double(self.stoas)[mask] * 86400
         M = self.designmatrix(updatebats=False,incoffset=True)[mask,:]
 
-        # extra partials must be given as an nobs x nextra array, using the native obs ordering         
+        # extra partials must be given as an nobs x nextra array, using the native obs ordering
         if extrapartials is not None:
             # may want to do more error checking here
             extrapar = extrapartials.shape[1]
-            M = numpy.hstack((M,extrapartials[mask,:]))
+            M = numpy.hstack((M, extrapartials[mask,:]))
         else:
             extrapar = 0
 
-        # normalize the design matrix
-        norm = numpy.sqrt(numpy.sum(M**2,axis=0))
-        if numpy.any(norm == 0):
-            print("Warning: one or more of the design-matrix columns is null. Disabling renormalization (if active), but fit may fail.")
-            renormalize = False
-
-        if renormalize:
-            M /= norm
-        else:
-            norm = numpy.ones_like(M[0,:])
-    
-        # note re noise model: add all relevant equads in quadrature,
-        #                      then multiply by all relevant efacs
-
         err = err.copy()
-        if self.noisemodel is not None:
+        phiinv = numpy.zeros(M.shape[1])
+        if self.noisemodel is not None and include_noise:
             for efac in [e for k,e in self.noisemodel.items() if k.startswith('efac')]:
                 err[:] = numpy.where(self.flagvals(efac.flag)[mask] == efac.flagval,
                                      efac.val * err,err)
@@ -1700,33 +1695,67 @@ cdef class tempopulsar:
                 err[:] = numpy.where(self.flagvals(equad.flag)[mask] == equad.flagval,
                                      numpy.sqrt(err**2 + equad.val**2),err)
 
-        # need to do ecorr...
+            # expand M matrix and create prior vector for extra noise
+            if (self.noisemodel.get('log10_ared') is not None and
+                    self.noisemodel.get('gamma') is not None):
+                nred = self.noisemodel.get('nred', 100)
+                F, Ffreqs = utils.create_fourier_design_matrix(toas, nred, freq=True)
+                phi = utils.powerlaw(Ffreqs, log10_A=self.noisemodel['log10_ared'],
+                                     gamma=self.noisemodel['gamma']) * Ffreqs[0]
+                phiinv = numpy.concatenate((phiinv, 1/phi))
+                M = numpy.hstack((M, F))
+
+            if any(k.startswith('ecorr') for k in self.noisemodel):
+                Umats = []
+                for ecorr in [e for k,e in self.noisemodel.items() if k.startswith('ecorr')]:
+                    flags = numpy.where(self.flagvals(ecorr.flag)[mask]==ecorr.flagval,
+                                        self.flagvals(ecorr.flag), '')
+                    _, U = utils.quantize_fast(toas, flags, dt=1.0)
+                    Umats.append(U)
+                    phi = numpy.ones(U.shape[1]) * (ecorr.val*1e-6)**2
+                    phiinv = numpy.concatenate((phiinv, 1/phi))
+                M = numpy.hstack((M, numpy.hstack(Umats)))
+
+        # normalize the design matrix
+        norm = numpy.sqrt(numpy.sum(M**2,axis=0))
+        ntmpar = 1 + len(self.vals())
+        if M.shape[1] > ntmpar:
+            norm[ntmpar:] = 1
+        if numpy.any(norm == 0):
+            print("Warning: one or more of the design-matrix columns is null. Disabling renormalization (if active), but fit may fail.")
+            renormalize = False
+
+        if renormalize:
+            M /= norm
+        else:
+            norm = numpy.ones_like(M[0,:])
 
         cinv = 1/(err * 1e-6)**2
-        mtcm = numpy.dot(M.T,cinv[:,numpy.newaxis]*M)
-        mtcy = numpy.dot(M.T,cinv*res)
-    
-        xvar = numpy.linalg.inv(mtcm)
-        
+        mtcm = numpy.dot(M.T, cinv[:,None]*M)
+        mtcm += numpy.diag(phiinv)
+        mtcy = numpy.dot(M.T, cinv*res)
+
         c = scipy.linalg.cho_factor(mtcm)
-        xhat = scipy.linalg.cho_solve(c,mtcy)
+        xhat = scipy.linalg.cho_solve(c, mtcy)
+        xvar = scipy.linalg.cho_solve(c, numpy.eye(len(mtcy)))
 
         # compute linearized chisq
-        newres = res - numpy.dot(M,xhat)
-        chisq = numpy.dot(newres,cinv*newres)
+        newres = res - numpy.dot(M, xhat)
+        chisq = numpy.dot(newres, cinv*newres)
 
         # compute absolute estimates, normalized errors, covariance matrix
-        x = xhat/norm; x[1:len(x)-extrapar] += self.vals()
+        ntmpar = 1 + len(self.vals())
+        x = xhat/norm; x[1:ntmpar] += self.vals()
         err = numpy.sqrt(numpy.diag(xvar)) / norm
         cov = xvar / numpy.outer(norm,norm)
 
         # reset tempo2 parameter values
-        self.vals(x[1:len(x)-extrapar])
-        self.errs(err[1:len(x)-extrapar])
-    
+        self.vals(x[1:ntmpar])
+        self.errs(err[1:ntmpar])
+
         return x, err, cov, chisq
 
-    def fit(self,iters=1,renormalize=True,extrapartials=None):
+    def fit(self,iters=1, renormalize=True, extrapartials=None, include_noise=True):
         """tempopulsar.fit(iters=1)
 
         Runs `iters` iterations of the a least-squares fit, using tempo2
@@ -1739,7 +1768,9 @@ cdef class tempopulsar:
         to the first TOA (even if that point is not used)."""
 
         for i in range(iters):
-            ret = self._fit(renormalize=renormalize,extrapartials=extrapartials)
+            ret = self._fit(renormalize=renormalize,
+                            extrapartials=extrapartials,
+                            include_noise=include_noise)
 
         return ret
 
@@ -1842,8 +1873,8 @@ def rewritetim(timfile):
     for line in open(timfile,'r').readlines():
         if 'INCLUDE' in line:
             m = re.match('([ #]*INCLUDE) *(.*)',line)
-            
-            # encodes are needed here because file is open in binary mode 
+
+            # encodes are needed here because file is open in binary mode
             if m:
                 out.write('{0} {1}/{2}\n'.format(m.group(1),os.path.dirname(timfile),m.group(2)).encode())
             else:
