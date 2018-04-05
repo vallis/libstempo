@@ -622,7 +622,7 @@ cdef class tempopulsar:
 
     def __cinit__(self, parfile, timfile=None, warnings=False,
                   fixprefiterrors=True, dofit=False, maxobs=None,
-                  units=False, ephem=None, t2cmethod=None):
+                  units=False, ephem=None, clk=None, t2cmethod=None):
 
         # initialize
 
@@ -654,6 +654,10 @@ cdef class tempopulsar:
 
         if not warnings:
             self.psr.noWarnings = 2         # do not show some warnings
+
+        # set clock if given
+        if clk is not None:
+            self.clock = clk
 
         # set conversion from terrestrial to celestial
         if t2cmethod is not None:
@@ -933,7 +937,13 @@ cdef class tempopulsar:
             return string(self.psr[0].clock)
 
         def __set__(self,value):
-            self._setstring(self.psr[0].clock,16,value)
+            value_bytes = value.encode()
+
+            if len(value_bytes) < 16:
+                stdio.sprintf(self.psr[0].clock,"%s",<char *>value_bytes)
+            else:
+                raise ValueError("CLK name '{}' is too long.".format(value))
+
 
     excludepars = ['START','FINISH']
 
