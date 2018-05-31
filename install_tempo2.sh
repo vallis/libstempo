@@ -26,6 +26,7 @@ cd psrsoft-tempo2-*
 
 ./bootstrap
 ./configure --prefix=$prefix
+# ./configure --prefix=$prefix --with-calceph=/usr/local
 make && make install
 # make plugins-install
 cp -Rp T2runtime/* $TEMPO2/.
