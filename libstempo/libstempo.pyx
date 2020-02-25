@@ -600,6 +600,9 @@ def tempo2version():
 # but all attributes must be defined in the code
 
 cdef class tempopulsar:
+    """tempopulsar(parfile, timefile=None, warnings=False, fixprefiterrors=True,
+                   dofit=False, maxobs=None, units=False, ephem=None, t2cmethod=None)"""
+
     cpdef public object parfile
     cpdef public object timfile
 
