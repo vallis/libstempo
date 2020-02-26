@@ -46,7 +46,7 @@ if tempo2 is None:
     virtenv = [os.environ['VIRTUAL_ENV']] if 'VIRTUAL_ENV' in os.environ else []
     ldpath  = map(lambda s: s[:-4],os.environ['LD_LIBRARY_PATH'].split(':')) if 'LD_LIBRARY_PATH' in os.environ else []
 
-    paths = t2exec + virtenv + ldpath + [os.environ['HOME'],'/usr/local','/usr']
+    paths = t2exec + virtenv + list(ldpath) + [os.environ['HOME'],'/usr/local','/usr']
     found = [path for path in paths if os.path.isfile(path + '/include/tempo2.h')]
     found = list(set(found))    # remove duplicates
 
@@ -85,7 +85,7 @@ else:
     linkArgs = []
 
 setup(name = 'libstempo',
-      version = '2.3.3', # remember to change it in __init__.py.in
+      version = '2.3.5', # remember to change it in __init__.py.in
       description = 'A Python wrapper for tempo2',
 
       author = 'Michele Vallisneri',
