@@ -165,6 +165,7 @@ cdef extern from "tempo2.h":
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
         char fname[MAX_FILELEN] # name of datafile giving TOA
         char telID[100]        # telescope ID
+        double sun_ssb[6]      # Sun wrt SSB
         double earth_ssb[6]    # Earth center wrt SSB
         double planet_ssb[9][6]    # Planet centers wrt SSB
         double observatory_earth[6]    # Obs wrt Earth center
@@ -1107,6 +1108,14 @@ cdef class tempopulsar:
             _shapiro_sun.strides[0] = sizeof(observation)
 
             return numpy.asarray(_shapiro_sun)
+
+    property sun_ssb:
+        def __get__(self):
+            cdef double [:,:] _sun_ssb = <double [:self.nobs,:6]>&(self.psr[0].obsn[0].sun_ssb[0])
+            _sun_ssb.strides[0] = sizeof(observation)
+            _sun_ssb.strides[1] = sizeof(double)
+
+            return numpy.asarray(_sun_ssb)
 
     # TO DO: need to dimensionfy as a Table
     property earth_ssb:
