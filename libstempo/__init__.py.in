@@ -1,8 +1,0 @@
-from __future__ import absolute_import
-__version__ = "2.3.5"
-
-import os
-if 'TEMPO2' not in os.environ:
-    os.environ['TEMPO2'] = 'TEMPO2DIR'
-
-from libstempo.libstempo import *
