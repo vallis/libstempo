@@ -31,6 +31,10 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install tempo2
       run: |
+        if [ "RUNNER_OS" == "macOS" ]; then
+            brew unlink gcc && brew link gcc
+            brew install automake
+        fi
         ./install_tempo2.sh
     - name: Install dependencies and package
       run: |
