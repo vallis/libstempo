@@ -1,110 +1,86 @@
-#!/usr/bin/env python
-
-# matteo: use subprocess.getoutput if available
-#         use os.path.join instead of +
-
-from __future__ import print_function
-
-import sys, os, platform
-
-from setuptools import setup
-from setuptools import Extension
-import distutils.sysconfig
-
-from Cython.Build import cythonize
+import os
+import platform
+import subprocess
+from pathlib import Path
 
 import numpy
+from Cython.Build import cythonize
+from setuptools import Extension, setup
 
-print("""WARNING: The libstempo API has changed substantially (for the better) from
-         versions 1.X to 2.X. If you need the older 1.X API, you can get an older libstempo
-         from https://pypi.python.org/simple/libstempo, or checkout the libstempo1
-         branch on GitHub - https://github.com/vallis/libstempo/tree/libstempo1""")
 
-tempo2, force_tempo2 = None, False
+# we assume that you have either installed tempo2 via install_tempo2.sh
+# or you have installed in the usual /usr/local
+# or the tempo2 executable is in your path
+def _get_tempo2_install_location():
+    # first check local install
+    local = Path(os.getenv("HOME")) / ".local"
+    if (local / "include/tempo2.h").exists():
+        return str(local)
 
-argv_replace = []
-for arg in sys.argv:
-    if arg.startswith('--with-tempo2='):
-        tempo2 = arg.split('=', 1)[1]
-    elif arg.startswith('--force-tempo2-install'):
-        force_tempo2 = True
-    else:
-        argv_replace.append(arg)
-sys.argv = argv_replace
+    # next try global
+    glbl = Path("/usr/local")
+    if (glbl / "include/tempo2.h").exists():
+        return str(glbl)
 
-if tempo2 is None:
-    # hmm, you're making things hard, huh? let's try autodetecting in a few likely places
-
+    # if not, check for tempo2 binary in path
     try:
-        import subprocess
-        stdout = subprocess.check_output('which tempo2',shell=True).decode()
-        t2exec = [stdout[:-12]]     # remove /bin/tempo2
-                                    # may fail if there are strange bytes
-    except:
-        t2exec = []
+        out = subprocess.check_output("which tempo2", shell=True)
+        out = out.decode().strip()
+    except subprocess.CalledProcessError:
+        raise subprocess.CalledProcessError(
+            ("tempo2 does not appear to be in your path. Please make sure the executable is in your path")
+        )
 
-    virtenv = [os.environ['VIRTUAL_ENV']] if 'VIRTUAL_ENV' in os.environ else []
-    ldpath  = map(lambda s: s[:-4],os.environ['LD_LIBRARY_PATH'].split(':')) if 'LD_LIBRARY_PATH' in os.environ else []
+    # the executable should be in in bin/ so navigate back and check include/
+    root_dir = Path(out).parents[1]
+    if (root_dir / "include/tempo2.h").exists():
+        return str(root_dir)
 
-    paths = t2exec + virtenv + list(ldpath) + [os.environ['HOME'],'/usr/local','/usr']
-    found = [path for path in paths if os.path.isfile(path + '/include/tempo2.h')]
-    found = list(set(found))    # remove duplicates
+    raise RuntimeError(
+        "Cannot find tempo2 install location. Use install_tempo2.sh script to install or install globally."
+    )
 
-    if found and not force_tempo2:
-        tempo2 = found[0]
-        print("Found tempo2 install in {0}, will use {1}.".format(found,"it" if len(found) == 1 else tempo2))
 
-        if 'TEMPO2' in os.environ:
-            runtime = os.environ['TEMPO2']
-        else:
-            runtime = os.path.join(tempo2,'share','tempo2')
-            print("But where is the tempo2 runtime? I'm guessing {}; if I am not right, you should define the environment variable TEMPO2.".format(runtime))
-    else:
-        # try installing tempo2!
-        tempo2 = os.path.dirname(os.path.dirname(os.path.dirname(distutils.sysconfig.get_python_lib())))
-        runtime = os.path.join(tempo2,'share','tempo2')
-
-        print("I have not been able to (or I was instructed not to) autodetect the location of the tempo2 headers and libraries.")
-        print("I will attempt to download and install tempo2 in {}; runtime files will be in {}.".format(tempo2,runtime))
-        print("Please note that if the environment variable TEMPO2 is defined, it will override {}.".format(runtime))
-
-        try:
-            subprocess.check_call(["./install_tempo2.sh",tempo2])
-        except subprocess.CalledProcessError:
-            print("I'm sorry, the tempo2 installation failed. I tried my best!")
-            sys.exit(2)
-
-runtime = os.path.join(tempo2,'share','tempo2')
-initsrc = open('libstempo/__init__.py.in','r').read().replace("TEMPO2DIR",runtime)
-open('libstempo/__init__.py','w').write(initsrc)
+TEMPO2 = _get_tempo2_install_location()
 
 # need rpath links to shared libraries on Linux
-if platform.system() == 'Linux':
-    linkArgs = ['-Wl,-R{}/lib'.format(tempo2)]
+if platform.system() == "Linux":
+    linkArgs = ["-Wl,-R{}/lib".format(TEMPO2)]
 else:
     linkArgs = []
 
-setup(name = 'libstempo',
-      version = '2.3.5', # remember to change it in __init__.py.in
-      description = 'A Python wrapper for tempo2',
-
-      author = 'Michele Vallisneri',
-      author_email = 'vallis@vallis.org',
-      url = 'https://github.com/vallis/libstempo',
-
-      packages = ['libstempo'],
-      package_dir = {'libstempo': 'libstempo'},
-      package_data = {'libstempo': ['data/*', 'ecc_vs_nharm.txt']},
-
-      py_modules = ['libstempo.like','libstempo.multinest','libstempo.emcee',
-                    'libstempo.plot','libstempo.toasim',
-                    'libstempo.spharmORFbasis', 'libstempo.eccUtils'],
-
-      ext_modules = cythonize(Extension('libstempo.libstempo',['libstempo/libstempo.pyx'],
-                                        language = "c++",
-                                        include_dirs = [tempo2 + '/include',numpy.get_include()],
-                                        libraries = ['tempo2','tempo2pred'],
-                                        library_dirs = [tempo2 + '/lib'],
-                                        extra_compile_args = ["-Wno-unused-function"],
-                                        extra_link_args = linkArgs))
-      )
+setup(
+    name="libstempo",
+    version="2.3.5",  # remember to change it in __init__.py
+    description="A Python wrapper for tempo2",
+    author="Michele Vallisneri",
+    author_email="vallis@vallis.org",
+    url="https://github.com/vallis/libstempo",
+    packages=["libstempo"],
+    package_dir={"libstempo": "libstempo"},
+    package_data={"libstempo": ["data/*", "ecc_vs_nharm.txt"]},
+    py_modules=[
+        "libstempo.like",
+        "libstempo.multinest",
+        "libstempo.emcee",
+        "libstempo.plot",
+        "libstempo.toasim",
+        "libstempo.spharmORFbasis",
+        "libstempo.eccUtils",
+    ],
+    install_requires=["Cython>=0.22", "numpy>=1.15.0", "scipy>=1.2.0", "matplotlib>=3.3.2", "ephem>=3.7.7.1"],
+    extras_require={"astropy": ["astropy>=4.1"]},
+    python_requires=">=3.6",
+    ext_modules=cythonize(
+        Extension(
+            "libstempo.libstempo",
+            ["libstempo/libstempo.pyx"],
+            language="c++",
+            include_dirs=[TEMPO2 + "/include", numpy.get_include()],
+            libraries=["tempo2", "tempo2pred"],
+            library_dirs=[TEMPO2 + "/lib"],
+            extra_compile_args=["-Wno-unused-function"],
+            extra_link_args=linkArgs,
+        )
+    ),
+)

@@ -1,0 +1,31 @@
+[tool.black]
+line-length = 120
+target_version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs         # exclude a few common directories in the
+    | \.git          # root of the project
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | _build
+    | buck-out
+    | build
+    | dist
+    | docs
+    | .libstempo
+  )/
+)
+'''
+
+[build-system]
+requires = [
+    "setuptools>=40.8.0",
+    "wheel", # ephem package likes to have wheel installed
+    "Cython>=0.22",
+    "numpy>=1.15.0",
+]
+build-backend = "setuptools.build_meta"

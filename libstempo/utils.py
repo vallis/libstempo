@@ -1,4 +1,3 @@
-# utils.py
 """Utility functions for noise models."""
 
 import numpy as np
@@ -11,7 +10,7 @@ def quantize_fast(times, flags, dt=1.0):
     bucket_ind = [[isort[0]]]
 
     for i in isort[1:]:
-        if times[i] - bucket_ref[-1] < dt and flags[i]!='':
+        if times[i] - bucket_ref[-1] < dt and flags[i] != "":
             bucket_ind[-1].append(i)
         else:
             bucket_ref.append(times[i])
@@ -20,16 +19,15 @@ def quantize_fast(times, flags, dt=1.0):
     # only keep epochs with 2 or more TOAs
     bucket_ind = [ind for ind in bucket_ind if len(ind) >= 2]
 
-    avetoas = np.array([np.mean(times[l]) for l in bucket_ind],'d')
-    U = np.zeros((len(times), len(bucket_ind)),'d')
-    for i,l in enumerate(bucket_ind):
-        U[l,i] = 1
+    avetoas = np.array([np.mean(times[l]) for l in bucket_ind], "d")
+    U = np.zeros((len(times), len(bucket_ind)), "d")
+    for i, l in enumerate(bucket_ind):
+        U[l, i] = 1
 
     return avetoas, U
 
 
-def create_fourier_design_matrix(t, nmodes, freq=False, Tspan=None,
-                                 logf=False, fmin=None, fmax=None):
+def create_fourier_design_matrix(t, nmodes, freq=False, Tspan=None, logf=False, fmin=None, fmax=None):
     """
     Construct fourier design matrix from eq 11 of Lentati et al, 2013
 
@@ -65,8 +63,8 @@ def create_fourier_design_matrix(t, nmodes, freq=False, Tspan=None,
     Ffreqs[0::2] = f
     Ffreqs[1::2] = f
 
-    F[:,::2] = np.sin(2*np.pi*t[:,None]*f[None,:])
-    F[:,1::2] = np.cos(2*np.pi*t[:,None]*f[None,:])
+    F[:, ::2] = np.sin(2 * np.pi * t[:, None] * f[None, :])
+    F[:, 1::2] = np.cos(2 * np.pi * t[:, None] * f[None, :])
 
     if freq:
         return F, Ffreqs
@@ -83,4 +81,4 @@ def powerlaw(f, log10_A=-16, gamma=5):
     """
 
     fyr = 1 / 3.16e7
-    return (10**log10_A)**2 / 12.0 / np.pi**2 * fyr**(gamma-3) * f**(-gamma)
+    return (10 ** log10_A) ** 2 / 12.0 / np.pi ** 2 * fyr ** (gamma - 3) * f ** (-gamma)
