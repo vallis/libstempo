@@ -11,7 +11,7 @@ if [ $# -eq 0 ]
 fi
 
 # make a destination directory for runtime files
-export TEMPO2=$prefix/share/T2runtime
+export TEMPO2=$prefix/share/tempo2
 mkdir -p $TEMPO2
 
 curl -O https://bitbucket.org/psrsoft/tempo2/get/2020.11.1.tar.gz
@@ -22,7 +22,7 @@ cd psrsoft-tempo2-*
 ./bootstrap
 ./configure --prefix=$prefix
 make && make install
-cp -r T2runtime $prefix/share
+cp -r T2runtime/* $TEMPO2
 cd ..
 
 rm -rf psrsoft-tempo2-*
