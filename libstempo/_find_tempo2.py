@@ -15,7 +15,7 @@ def find_tempo2_runtime():
     """
 
     # first check for local install (i.e. from using install_tempo2.sh)
-    local_path = Path(HOME) / ".local/share/T2runtime"
+    local_path = Path(HOME) / ".local/share/tempo2"
     if local_path.exists():
         return str(local_path)
 
@@ -24,7 +24,7 @@ def find_tempo2_runtime():
         out = subprocess.check_output("which tempo2", shell=True)
         out = out.decode().strip()
     except subprocess.CalledProcessError:
-        raise subprocess.CalledProcessError(
+        raise RuntimeError(
             ("tempo2 does not appear to be in your path. Please make sure the executable is in your path")
         )
 
