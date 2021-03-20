@@ -39,4 +39,4 @@ def find_tempo2_runtime():
                     dirs = [dd.stem for dd in d.iterdir() if dd.is_dir()]
                     if all(rd in dirs for rd in RUNTIME_DIRS):
                         return str(d)
-    raise RuntimeError(f"Can't find T2runtime from inspection. Set TEMPO2 environment variable")
+    raise RuntimeError("Can't find T2runtime from inspection. Set TEMPO2 environment variable")
