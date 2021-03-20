@@ -1,7 +1,6 @@
 __version__ = "2.3.5"
 
 import os
-
 from ._find_tempo2 import find_tempo2_runtime
 
 
