@@ -178,6 +178,7 @@ cdef extern from "tempo2.h":
         long double roemer     # Roemer delay
         double shapiroDelaySun     # Shapiro delay caused by the Sun
         double phaseOffset     # Phase offset
+        long double phase      # the phase (cycles)
 
     ctypedef int param_label
 
@@ -929,6 +930,7 @@ cdef class tempopulsar:
         # set the TOA values
         self.stoas[:] = toas
 
+        # initialise other required values for each observation
         npsatday = numpy.asarray(_satday)
         npsatsec = numpy.asarray(_satsec)
         npdeleted = numpy.asarray(_deleted)
@@ -945,7 +947,7 @@ cdef class tempopulsar:
         npnflags[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
         npdmerr[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
 
-        # file in fake filename
+        # fill in fake filename
         for i in range(self.psr[0].nobs):
             strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE", 4 * sizeof(char))
 
@@ -1883,6 +1885,23 @@ cdef class tempopulsar:
                 removemean=removemean)
 
         return numpy.asarray(_pulseN)
+
+    def phase(self, updatebats=True,formresiduals=True,removemean=True):
+        """Return the pulse phase (first TOA is set to zero phase).
+
+        Returns the pulse phase as a numpy array. Will update the
+        TOAs/recompute residuals if `updatebats`/`formresiduals` is True
+        (default for both). If that is requested, the residual mean is removed
+        `removemean` is True. All this just like in `residuals`.
+        """
+
+        cdef long double [:] _phase = <long double [:self.nobs]>&(self.psr[0].obsn[0].phase)
+        _phase.strides[0] = sizeof(observation)
+
+        _ = self.residuals(updatebats=updatebats, formresiduals=formresiduals,
+                removemean=removemean)
+
+        return numpy.asarray(_phase).copy()
 
     def _fit(self, renormalize=True, extrapartials=None, include_noise=True):
         # exclude deleted points
