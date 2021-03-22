@@ -177,6 +177,7 @@ cdef extern from "tempo2.h":
         long long pulseN       # Pulse number
         long double roemer     # Roemer delay
         double shapiroDelaySun     # Shapiro delay caused by the Sun
+        double phaseOffset     # Phase offset
 
     ctypedef int param_label
 
@@ -624,6 +625,11 @@ cdef class tempopulsar:
 
     cpdef public object noisemodel
 
+    cpdef object __input_toas  # input TOAs
+    cpdef object __input_toaerrs  # input TOA errors
+    cpdef object __input_observatory  # input observatories
+    cpdef object __input_obsfreq   # input observation frequencies
+
     # TO DO: is cpdef required here?
     cpdef jumpval, jumperr
 
@@ -638,6 +644,11 @@ cdef class tempopulsar:
         global MAX_PSR, MAX_OBSN
 
         self.npsr = 1
+
+        self.__input_toas = toas
+        self.__input_toaerrs = toaerrs
+        self.__input_observatory = observatory
+        self.__input_obsfreq = obsfreq
 
         # to save memory, only allocate space for this many pulsars and observations
         MAX_PSR = 1
@@ -659,12 +670,6 @@ cdef class tempopulsar:
             timfile = rewritetim(timfile)
             self._readfiles(parfile,timfile)
             os.unlink(timfile)
-
-        # set TOAs from input values
-        self.inputtoas = toas
-        self.inputtoaerrs = toaerrs
-        self.inputobservatory = observatory
-        self.inputobsfreq = obsfreq
 
         # set tempo2 flags
 
@@ -725,7 +730,7 @@ cdef class tempopulsar:
         if not os.path.isfile(parfile):
             raise IOError("Cannot find parfile {0}.".format(parfile))
 
-        if not os.path.isfile(timfile) and self.inputtoas is None:
+        if not os.path.isfile(timfile) and self.__input_toas is None:
             # hail Mary pass
             maybe = '../tim/{0}'.format(timfile)
             if os.path.isfile(maybe):
@@ -804,8 +809,11 @@ cdef class tempopulsar:
         if self.psr[0].TNRedC != 0:
             self.noisemodel['nred'] = self.psr[0].TNRedC
 
+        # set TOAs from input values
+        self.inputtoas = self.__input_toas
 
-        readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
+        if self.inputtoas is None:
+            readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
     def _readpars(self,fixprefiterrors=True):
         cdef parameter *params = self.psr[0].param
@@ -875,7 +883,7 @@ cdef class tempopulsar:
         """Get or set input TOAs"""
 
         def __get__(self):
-            return self.stoas
+            return self.stoas if self.__input_toas is not None else None
 
         def __set__(self, toas):
             if toas is not None:
@@ -896,25 +904,67 @@ cdef class tempopulsar:
                         toamjd = numpy.array([toamjd])
 
                 self.psr[0].nobs = len(toamjd)
+                self.nobs_ = len(toamjd)
 
                 # set the values
-                self.stoas[:] = toamjd
-                self._input_toas = True
-            else:
-                self._input_toas = False
+                self._set_observation_from_input(toamjd)
+
+    def _set_observation_from_input(self, toas):
+        """Fill in all observation values from input TOAs."""
+
+        cdef long double [:] _satday = <long double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].sat_day)
+        cdef long double [:] _satsec = <long double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].sat_sec)
+        cdef int [:] _deleted = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].deleted)
+        cdef int [:] _nflags = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].nFlags)
+        cdef double [:] _phaseoff = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].phaseOffset)
+        cdef double [:] _dmerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaDMErr)
+        cdef size_t obssize = sizeof(observation)
+        _satday.strides[0] = obssize
+        _satsec.strides[0] = obssize
+        _deleted.strides[0] = obssize
+        _nflags.strides[0] = obssize
+        _phaseoff.strides[0] = obssize
+        _dmerr.strides[0] = obssize
+
+        # set the TOA values
+        self.stoas[:] = toas
+
+        npsatday = numpy.asarray(_satday)
+        npsatsec = numpy.asarray(_satsec)
+        npdeleted = numpy.asarray(_deleted)
+        npphaseoff = numpy.asarray(_phaseoff)
+        npnflags = numpy.asarray(_nflags)
+        npdmerr = numpy.asarray(_dmerr)
+
+        days = numpy.floor(toas).astype(numpy.float128)
+        npsatday[:] = days
+        npsatsec[:] = toas - days
+
+        npdeleted[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
+        npphaseoff[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
+        npnflags[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
+        npdmerr[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
+
+        # file in fake filename
+        for i in range(self.psr[0].nobs):
+            strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE", 4 * sizeof(char))
+
+        self.inputtoaerrs = self.__input_toaerrs
+        self.inputobservatory = self.__input_observatory
+        self.inputobsfreq = self.__input_obsfreq
 
     property inputtoaerrs:
         """Get or set input TOA errors"""
 
         def __get__(self):
-            return self.toaerrs
+            return self.toaerrs if self.inputtoas is not None else None
 
         def __set__(self, toaerrs):
             cdef double [:] _toaerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaErr)
             _toaerr.strides[0] = sizeof(observation)
             nptoaerr = numpy.asarray(_toaerr)
 
-            if self._input_toas:
+            if self.__input_toas is not None:
                 if toaerrs is None:
                     raise ValueError("TOA errors must be supplied with input TOAs")
 
@@ -939,7 +989,7 @@ cdef class tempopulsar:
             return self.telescope()
 
         def __set__(self, obs):
-            if self._input_toas:
+            if self.inputtoas is not None:
                 if obs is None:
                     raise ValueError("An observatory must be supplied with input TOAs")
 
@@ -947,17 +997,17 @@ cdef class tempopulsar:
                     if len(obs) != self.psr[0].nobs:
                         raise ValueError("Number of supplied observatories must match TOAs")
 
-                    # observories will be truncated at 99 characters to fit in telID values
-                    obsv = numpy.array(obs, dtype="S99")
+                    # observories will be truncated at 100 characters to fit in telID values
+                    obsv = numpy.array(obs, dtype="S100")
                 elif isinstance(obs, str):
                     # single value given
-                    obsv = numpy.array([obs] * self.psr[0].nobs, dtype="S99")
+                    obsv = numpy.array([obs] * self.psr[0].nobs, dtype="S100")
                 else:
                     raise TypeError("Input TOA observatories are not of an allowed type")
 
                 # set the observatories
                 for i in range(self.psr[0].nobs):
-                    strncpy(self.psr[0].obsn[i].telID, obsv[i], 99)
+                    strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obsv[i], 100 * sizeof(char))
 
     property inputobsfreq:
         """Get or set the observation frequency (in MHz)"""
@@ -970,7 +1020,7 @@ cdef class tempopulsar:
             _freqsarr.strides[0] = sizeof(observation)
             npfreqs = numpy.asarray(_freqsarr)
 
-            if self._input_toas:
+            if self.inputtoas is not None:
                 if freq is None:
                     raise ValueError("Observing frequencies must be supplied with input TOAs")
 
@@ -1522,6 +1572,26 @@ cdef class tempopulsar:
             res -= res[0]
 
         return self._dimensionfy(res,u.s) if self.units else res
+
+    def phaseresiduals(self, updatebats=True, formresiduals=True, removemean=True):
+        """tempopulsar.phaseresiduals(updatebats=True,formresiduals=True,removemean=True)
+
+        Returns phase residuals (in cycles) as a numpy.longdouble array (a copy of
+        current values). Will update TOAs/recompute residuals if
+        `updatebats`/`formresiduals` is True (default for both). Will remove residual
+        mean if `removemean` is True; first residual if `removemean` is 'first';
+        weighted residual mean if `removemean` is 'weighted'."""
+
+        res = self.residuals(
+            updatebats=updatebats,
+            formresiduals=formresiduals,
+            removemean=removemean,
+        )
+
+        # convert to phase (in cycles)
+        res *= self["F0"].val
+
+        return self._dimensionfy(res, u.s / u.s) if self.units else res
 
     def formbats(self):
         formBatsAll(self.psr,self.npsr)
