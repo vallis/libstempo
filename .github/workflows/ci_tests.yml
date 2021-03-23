@@ -42,7 +42,7 @@ jobs:
     - name: Install dependencies and package
       run: |
         python -m pip install --upgrade pip
-        python -m pip install flake8 pytest black pytest-cov
+        python -m pip install -r requirements_dev.txt
         pip install -e .[astropy]
     - name: Run lint
       run: make lint
