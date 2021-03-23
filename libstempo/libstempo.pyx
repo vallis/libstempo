@@ -118,6 +118,8 @@ cdef extern from "tempo2.h":
     enum: MAX_FIT
     enum: T2C_TEMPO
     enum: T2C_IAU2000B
+    enum: REFPHS_MEAN
+    enum: REFPHS_TZR
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
@@ -161,6 +163,7 @@ cdef extern from "tempo2.h":
         long double prefitResidual
         long double residual
         double toaErr          # error on TOA (in us)
+        double origErr         # original error on TOA after reading tim file (in us)
         double toaDMErr        # error on TOA due to DM (in us)
         char **flagID          # ID of flags
         char **flagVal         # Value of flags
@@ -282,6 +285,10 @@ cdef extern from "tempo2.h":
         double TNRedAmp
         double TNRedGam
         int TNRedC
+
+        # set reference observation
+        char refphs
+        char tzrsite[100]
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -658,7 +665,7 @@ cdef class tempopulsar:
         # to save memory, only allocate space for this many pulsars and observations
         MAX_PSR = 1
         try:
-            MAX_OBSN = len(toas)
+            MAX_OBSN = len(toas) + 1  # add spare in case needed for reference obs
         except TypeError:
             MAX_OBSN = MAX_OBSN_VAL if maxobs is None else maxobs 
 
@@ -967,13 +974,16 @@ cdef class tempopulsar:
 
         def __set__(self, toaerrs):
             cdef double [:] _toaerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaErr)
+            cdef double [:] _origerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].origErr)
             cdef double [:] _efac = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].efac)
             cdef double [:] _equad = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].equad)
             cdef size_t obssize = sizeof(observation)
             _toaerr.strides[0] = obssize
+            _origerr.strides[0] = obssize
             _efac.strides[0] = obssize
             _equad.strides[0] = obssize
             nptoaerr = numpy.asarray(_toaerr)
+            nporigerr = numpy.asarray(_toaerr)
             npefac = numpy.asarray(_efac)
             npequad = numpy.asarray(_equad)
 
@@ -994,6 +1004,7 @@ cdef class tempopulsar:
                         raise TypeError("Input TOA errors are not of an allowed type")
 
                 nptoaerr[:] = toaerr
+                nporigerr[:] = numpy.copy(toaerr)  # store copy as original values
 
                 # currently set EFAC and EQUAD to zero by default
                 npefac[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
@@ -1581,25 +1592,47 @@ cdef class tempopulsar:
 
 
     # --- residuals
-    def residuals(self,updatebats=True,formresiduals=True,removemean=True):
+    def residuals(self,updatebats=True,formresiduals=True,removemean=True, epoch=None, site=None, freq=None):
         """tempopulsar.residuals(updatebats=True,formresiduals=True,removemean=True)
 
         Returns residuals as a numpy.longdouble array (a copy of current values).
         Will update TOAs/recompute residuals if `updatebats`/`formresiduals` is True
         (default for both). Will remove residual mean if `removemean` is True;
         first residual if `removemean` is 'first'; weighted residual mean
-        if `removemean` is 'weighted'."""
+        if `removemean` is 'weighted'.
+
+        If `removemean` is `refphs` then the residuals will be referenced to the TZR
+        parameters (TZRMJD, TZRSITE, TZRFREQ) given in the parameter file, or, if
+        given, the `epoch`, `site` and `freq` values.
+        """
 
         cdef long double [:] _res = <long double [:self.nobs]>&(self.psr[0].obsn[0].residual)
         _res.strides[0] = sizeof(observation)
 
-        if removemean not in [True, False, 'weighted', 'first']:
-            raise ValueError("Argument 'removemean' should be True, False, 'first', or 'weighted'.")
+        if removemean not in [True, False, 'weighted', 'first', 'refphs']:
+            raise ValueError("Argument 'removemean' should be True, False, 'first', 'weighted', or 'refphs'.")
 
         if updatebats:
             updateBatsAll(self.psr,self.npsr)
         if formresiduals:
-            formResiduals(self.psr,self.npsr,1 if removemean is True else 0)
+            if removemean != 'refphs':
+                formResiduals(self.psr,self.npsr,1 if removemean is True else 0)
+            else:
+                if epoch is None and site is None and freq is None and self.psr[0].refphs == REFPHS_TZR:
+                    formResiduals(self.psr, self.npsr, 0)
+                else:
+                    if epoch is not None:
+                        # set reference epoch
+                        self["TZRMJD"].val = epoch
+                    if site is not None:
+                        strncpy(<char *>&(self.psr[0].tzrsite[0]), str.encode(site), 100 * sizeof(char))
+                    if freq is not None:
+                        self["TZRFRQ"] = freq
+                    self.psr[0].refphs = REFPHS_TZR
+
+                    # re-do BATS (to get BAT for reference epoch)
+                    self.formbats()
+                    formResiduals(self.psr, self.npsr, 0)
 
         res = numpy.asarray(_res).copy()
         if removemean is 'weighted':
@@ -1611,19 +1644,27 @@ cdef class tempopulsar:
 
         return self._dimensionfy(res,u.s) if self.units else res
 
-    def phaseresiduals(self, updatebats=True, formresiduals=True, removemean=True):
+    def phaseresiduals(self, updatebats=True, formresiduals=True, removemean=True, epoch=None, site=None, freq=None):
         """tempopulsar.phaseresiduals(updatebats=True,formresiduals=True,removemean=True)
 
         Returns phase residuals (in cycles) as a numpy.longdouble array (a copy of
         current values). Will update TOAs/recompute residuals if
         `updatebats`/`formresiduals` is True (default for both). Will remove residual
         mean if `removemean` is True; first residual if `removemean` is 'first';
-        weighted residual mean if `removemean` is 'weighted'."""
+        weighted residual mean if `removemean` is 'weighted'.
+
+        If `removemean` is `refphs` then the residuals will be referenced to the TZR
+        parameters (TZRMJD, TZRSITE, TZRFREQ) given in the parameter file, or, if
+        given, the `epoch`, `site` and `freq` values.
+        """
 
         res = self.residuals(
             updatebats=updatebats,
             formresiduals=formresiduals,
             removemean=removemean,
+            epoch=epoch,
+            site=site,
+            freq=freq,
         )
 
         # convert to phase (in cycles)
@@ -1922,20 +1963,26 @@ cdef class tempopulsar:
 
         return numpy.asarray(_pulseN)
 
-    def phase(self, updatebats=True,formresiduals=True,removemean=True):
-        """Return the pulse phase (first TOA is set to zero phase).
+    def phase(self, updatebats=True,formresiduals=True,removemean=True, epoch=None, site=None, freq=None):
+        """Return the pulse phase.
 
         Returns the pulse phase as a numpy array. Will update the
         TOAs/recompute residuals if `updatebats`/`formresiduals` is True
         (default for both). If that is requested, the residual mean is removed
-        `removemean` is True. All this just like in `residuals`.
+        `removemean` is True.
+        
+        If `removemean` is `refphs` then the residuals will be referenced to the TZR
+        parameters (TZRMJD, TZRSITE, TZRFREQ) given in the parameter file, or, if
+        given, the `epoch`, `site` and `freq` values.
+        
+        All this just like in `residuals`.
         """
 
         cdef long double [:] _phase = <long double [:self.nobs]>&(self.psr[0].obsn[0].phase)
         _phase.strides[0] = sizeof(observation)
 
         _ = self.residuals(updatebats=updatebats, formresiduals=formresiduals,
-                removemean=removemean)
+                removemean=removemean, epoch=epoch, site=site, freq=freq)
 
         return numpy.asarray(_phase).copy()
 
