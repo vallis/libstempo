@@ -12,16 +12,19 @@ Relevant References are:
 
 """
 
+from pathlib import Path
+
 import numpy as np
 import scipy.constants as sc
 import scipy.special as ss
-from pkg_resources import Requirement, resource_filename
 from scipy.integrate import odeint
 from scipy.interpolate import interp1d
 
 SOLAR2S = sc.G / sc.c ** 3 * 1.98855e30
 KPC2S = sc.parsec / sc.c * 1e3
 MPC2S = sc.parsec / sc.c * 1e6
+
+ECC_FILE = Path(__file__).parent / "ecc_vs_nharm.txt"
 
 
 def make_ecc_interpolant():
@@ -32,9 +35,8 @@ def make_ecc_interpolant():
 
     :returns: interpolant
     """
-    pth = resource_filename(Requirement.parse("libstempo"), "libstempo/ecc_vs_nharm.txt")
 
-    fil = np.loadtxt(pth)
+    fil = np.loadtxt(ECC_FILE)
 
     return interp1d(fil[:, 0], fil[:, 1])
 
