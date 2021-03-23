@@ -155,6 +155,8 @@ cdef extern from "tempo2.h":
         long double bbat       # barycentric arrival time
         long double batCorr    #update from sat-> bat
         long double pet        # pulsar emission time
+        int clockCorr          # = 1 for clock corrections to be applied, = 0 for BAT
+        int delayCorr          # = 1 for time delay corrections to be applied, = 0 for BAT
         int deleted            # 1 if observation deleted, -1 if not in fit
         long double prefitResidual
         long double residual
@@ -179,6 +181,8 @@ cdef extern from "tempo2.h":
         double shapiroDelaySun     # Shapiro delay caused by the Sun
         double phaseOffset     # Phase offset
         long double phase      # the phase (cycles)
+        double efac            # Error multiplication factor
+        double equad           # Value to add in quadrature
 
     ctypedef int param_label
 
@@ -963,8 +967,15 @@ cdef class tempopulsar:
 
         def __set__(self, toaerrs):
             cdef double [:] _toaerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaErr)
-            _toaerr.strides[0] = sizeof(observation)
+            cdef double [:] _efac = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].efac)
+            cdef double [:] _equad = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].equad)
+            cdef size_t obssize = sizeof(observation)
+            _toaerr.strides[0] = obssize
+            _efac.strides[0] = obssize
+            _equad.strides[0] = obssize
             nptoaerr = numpy.asarray(_toaerr)
+            npefac = numpy.asarray(_efac)
+            npequad = numpy.asarray(_equad)
 
             if self.__input_toas is not None:
                 if toaerrs is None:
@@ -978,11 +989,15 @@ cdef class tempopulsar:
                         toaerr = numpy.array(toaerrs, dtype=numpy.float64)
                     elif isinstance(toaerrs, float):
                         # single value given
-                        toaerr = numpy.array([toaerrs] * self.psr[0].nobs, dtype=numpy.float64)
+                        toaerr = toaerrs * numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
                     else:
                         raise TypeError("Input TOA errors are not of an allowed type")
 
                 nptoaerr[:] = toaerr
+
+                # currently set EFAC and EQUAD to zero by default
+                npefac[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
+                npequad[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
 
     property inputobservatory:
         """Get or set input TOA observatory site"""
@@ -991,6 +1006,15 @@ cdef class tempopulsar:
             return self.telescope()
 
         def __set__(self, obs):
+            cdef int [:] _clockcorr = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].clockCorr)
+            cdef int [:] _delaycorr = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].delayCorr)
+            cdef size_t obssize = sizeof(observation)
+            _clockcorr.strides[0] = obssize
+            _delaycorr.strides[0] = obssize
+
+            npclockcorr = numpy.asarray(_clockcorr)
+            npdelaycorr = numpy.asarray(_delaycorr)
+
             if self.inputtoas is not None:
                 if obs is None:
                     raise ValueError("An observatory must be supplied with input TOAs")
@@ -1003,13 +1027,25 @@ cdef class tempopulsar:
                     obsv = numpy.array(obs, dtype="S100")
                 elif isinstance(obs, str):
                     # single value given
-                    obsv = numpy.array([obs] * self.psr[0].nobs, dtype="S100")
+                    obsv = numpy.array([obs for _ in range(self.psr[0].nobs)], dtype="S100")
                 else:
                     raise TypeError("Input TOA observatories are not of an allowed type")
 
                 # set the observatories
                 for i in range(self.psr[0].nobs):
                     strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obsv[i], 100 * sizeof(char))
+
+                    # set which corrections to apply (taken from TEMPO2 readTimfile.C)
+                    if obsv[i][0] == "@" or obsv[i] == "bat":
+                        # times are barycentric arrival times anyway, so don't correct
+                        npclockcorr[i] = 0
+                        npdelaycorr[i] = 0
+                    elif obsv[i] in ["STL", "STL_FBAT"]:
+                        npclockcorr[i] = 0  # don't do clock corrections
+                        npdelaycorr[i] = 1
+                    else:
+                        npclockcorr[i] = 1
+                        npdelaycorr[i] = 1
 
     property inputobsfreq:
         """Get or set the observation frequency (in MHz)"""
@@ -1033,7 +1069,7 @@ cdef class tempopulsar:
                     freqs = numpy.array(freq, dtype=numpy.float64)
                 elif isinstance(freq, (int, float)):
                     # single value given
-                    freqs = numpy.array([freq] * self.psr[0].nobs, dtype=numpy.float64)
+                    freqs = freq * numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
                 else:
                     raise TypeError("Input TOA observation frequencies are not of an allowed type")
 
@@ -1557,7 +1593,7 @@ cdef class tempopulsar:
         cdef long double [:] _res = <long double [:self.nobs]>&(self.psr[0].obsn[0].residual)
         _res.strides[0] = sizeof(observation)
 
-        if removemean not in [True,False,'weighted','first']:
+        if removemean not in [True, False, 'weighted', 'first']:
             raise ValueError("Argument 'removemean' should be True, False, 'first', or 'weighted'.")
 
         if updatebats:
