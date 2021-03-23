@@ -28,7 +28,7 @@ The `libstempo` package can be installed via `pip`:
 pip install libstempo
 ```
 
-To use `astopy` for units:
+To use `astropy` for units:
 ```bash
 pip install libstempo[astropy]
 ```

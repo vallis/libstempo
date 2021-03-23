@@ -1,4 +1,4 @@
-__version__ = "2.3.5"
+__version__ = "2.4.0"
 
 import os
 from ._find_tempo2 import find_tempo2_runtime
