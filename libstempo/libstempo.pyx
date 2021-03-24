@@ -1658,28 +1658,13 @@ cdef class tempopulsar:
 
         return self._dimensionfy(res,u.s) if self.units else res
 
-    def phaseresiduals(self, updatebats=True, formresiduals=True, removemean=True, epoch=None, site=None, freq=None):
-        """tempopulsar.phaseresiduals(updatebats=True,formresiduals=True,removemean=True)
-
+    def phaseresiduals(self, **kwargs):
+        """
         Returns phase residuals (in cycles) as a numpy.longdouble array (a copy of
-        current values). Will update TOAs/recompute residuals if
-        `updatebats`/`formresiduals` is True (default for both). Will remove residual
-        mean if `removemean` is True; first residual if `removemean` is 'first';
-        weighted residual mean if `removemean` is 'weighted'.
-
-        If `removemean` is `refphs` then the residuals will be referenced to the TZR
-        parameters (TZRMJD, TZRSITE, TZRFREQ) given in the parameter file, or, if
-        given, the `epoch`, `site` and `freq` values.
+        current values). Arguments are the same as for the residuals method.
         """
 
-        res = self.residuals(
-            updatebats=updatebats,
-            formresiduals=formresiduals,
-            removemean=removemean,
-            epoch=epoch,
-            site=site,
-            freq=freq,
-        )
+        res = self.residuals(**kwargs)
 
         # convert to phase (in cycles)
         res *= self["F0"].val
@@ -1977,26 +1962,17 @@ cdef class tempopulsar:
 
         return numpy.asarray(_pulseN)
 
-    def phase(self, updatebats=True,formresiduals=True,removemean=True, epoch=None, site=None, freq=None):
+    def phase(self, **kwargs):
         """Return the pulse phase.
 
-        Returns the pulse phase as a numpy array. Will update the
-        TOAs/recompute residuals if `updatebats`/`formresiduals` is True
-        (default for both). If that is requested, the residual mean is removed
-        `removemean` is True.
-        
-        If `removemean` is `refphs` then the residuals will be referenced to the TZR
-        parameters (TZRMJD, TZRSITE, TZRFREQ) given in the parameter file, or, if
-        given, the `epoch`, `site` and `freq` values.
-        
-        All this just like in `residuals`.
+        Returns the pulse phase as a numpy array. Arguments are the same as for
+        the `residuals` method.
         """
 
         cdef long double [:] _phase = <long double [:self.nobs]>&(self.psr[0].obsn[0].phase)
         _phase.strides[0] = sizeof(observation)
 
-        _ = self.residuals(updatebats=updatebats, formresiduals=formresiduals,
-                removemean=removemean, epoch=epoch, site=site, freq=freq)
+        _ = self.residuals(**kwargs)
 
         return numpy.asarray(_phase).copy()
 
