@@ -15,7 +15,7 @@
 ## Installation
 
 ### conda Install
-`libstempo` is installed most simply via conda as the `tempo` dependncy
+`libstempo` is installed most simply via conda as the `tempo` dependency
 is bundled in the conda recipe. Simply use
 ```bash
 conda install -c conda-forge libstempo
