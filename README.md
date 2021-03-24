@@ -22,7 +22,7 @@ conda install -c conda-forge libstempo
 ```
 
 ### pip Install
-To use `libstempo` with pip (of from source), tempo2 must be installed as a prerequisite. Currently there are two recommended methods to do this.
+To use `libstempo` with pip (or from source), tempo2 must be installed as a prerequisite. Currently there are two recommended methods to do this.
 
 1. Install via script. 
     ```bash
