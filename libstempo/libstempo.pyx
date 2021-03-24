@@ -822,9 +822,9 @@ cdef class tempopulsar:
             self.noisemodel['nred'] = self.psr[0].TNRedC
 
         # set TOAs from input values
-        self.inputtoas = self.__input_toas
+        self._inputtoas()
 
-        if self.inputtoas is None:
+        if self.__input_toas is None:
             readTimfile(self.psr,timFile,self.npsr)           # load the arrival times (all pulsars)
 
     def _readpars(self,fixprefiterrors=True):
@@ -891,35 +891,33 @@ cdef class tempopulsar:
         else:
             raise ValueError
 
-    property inputtoas:
-        """Get or set input TOAs"""
+    def _inputtoas(self):
+        """Set up site arrival times based on input TOAs."""
 
-        def __get__(self):
-            return self.stoas if self.__input_toas is not None else None
+        toas = self.__input_toas
 
-        def __set__(self, toas):
-            if toas is not None:
-                if isinstance(toas, (list, numpy.ndarray, tuple)):
-                    toamjd = numpy.array(toas, dtype=numpy.float128)
-                elif isinstance(toas, (float, numpy.float128)):
-                    toamjd = numpy.array([toas], dtype=numpy.float128)
-                else:
-                    # check if using an astropy time object
-                    try:
-                        if isinstance(toas, Time):
-                            toamjd = toas.mjd.astype(numpy.float128)  # make sure in MJD
-                    except NameError:
-                        raise TypeError("Input TOAs are not of an allowed type")
+        if toas is not None:
+            if isinstance(toas, (list, numpy.ndarray, tuple)):
+                toamjd = numpy.array(toas, dtype=numpy.float128)
+            elif isinstance(toas, (float, numpy.float128)):
+                toamjd = numpy.array([toas], dtype=numpy.float128)
+            else:
+                # check if using an astropy time object
+                try:
+                    if isinstance(toas, Time):
+                        toamjd = toas.mjd.astype(numpy.float128)  # make sure in MJD
+                except NameError:
+                    raise TypeError("Input TOAs are not of an allowed type")
 
-                    if isinstance(toamjd, numpy.float128):
-                        # convert to array is a single value
-                        toamjd = numpy.array([toamjd])
+                if isinstance(toamjd, numpy.float128):
+                    # convert to array is a single value
+                    toamjd = numpy.array([toamjd])
 
-                self.psr[0].nobs = len(toamjd)
-                self.nobs_ = len(toamjd)
+            self.psr[0].nobs = len(toamjd)
+            self.nobs_ = len(toamjd)
 
-                # set the values
-                self._set_observation_from_input(toamjd)
+            # set the values
+            self._set_observation_from_input(toamjd)
 
     def _set_observation_from_input(self, toas):
         """Fill in all observation values from input TOAs."""
@@ -962,130 +960,122 @@ cdef class tempopulsar:
         for i in range(self.psr[0].nobs):
             strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE", 4 * sizeof(char))
 
-        self.inputtoaerrs = self.__input_toaerrs
-        self.inputobservatory = self.__input_observatory
-        self.inputobsfreq = self.__input_obsfreq
+        self._inputtoaerrs()
+        self._inputobservatory()
+        self._inputobsfreq()
 
-    property inputtoaerrs:
-        """Get or set input TOA errors"""
+    def _inputtoaerrs(self):
+        """Set the TOA errors from input values."""
+        
+        cdef double [:] _toaerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaErr)
+        cdef double [:] _origerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].origErr)
+        cdef double [:] _efac = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].efac)
+        cdef double [:] _equad = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].equad)
+        cdef size_t obssize = sizeof(observation)
+        _toaerr.strides[0] = obssize
+        _origerr.strides[0] = obssize
+        _efac.strides[0] = obssize
+        _equad.strides[0] = obssize
+        nptoaerr = numpy.asarray(_toaerr)
+        nporigerr = numpy.asarray(_toaerr)
+        npefac = numpy.asarray(_efac)
+        npequad = numpy.asarray(_equad)
 
-        def __get__(self):
-            return self.toaerrs if self.inputtoas is not None else None
+        if self.__input_toas is not None:
+            toaerrs = self.__input_toaerrs
 
-        def __set__(self, toaerrs):
-            cdef double [:] _toaerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaErr)
-            cdef double [:] _origerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].origErr)
-            cdef double [:] _efac = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].efac)
-            cdef double [:] _equad = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].equad)
-            cdef size_t obssize = sizeof(observation)
-            _toaerr.strides[0] = obssize
-            _origerr.strides[0] = obssize
-            _efac.strides[0] = obssize
-            _equad.strides[0] = obssize
-            nptoaerr = numpy.asarray(_toaerr)
-            nporigerr = numpy.asarray(_toaerr)
-            npefac = numpy.asarray(_efac)
-            npequad = numpy.asarray(_equad)
+            if toaerrs is None:
+                raise ValueError("TOA errors must be supplied with input TOAs")
 
-            if self.__input_toas is not None:
-                if toaerrs is None:
-                    raise ValueError("TOA errors must be supplied with input TOAs")
+            if toaerrs is not None:
+                if isinstance(toaerrs, (list, numpy.ndarray, tuple)):
+                    if len(toaerrs) != self.psr[0].nobs:
+                        raise ValueError("TOA errors must be same length as input TOAs")
 
-                if toaerrs is not None:
-                    if isinstance(toaerrs, (list, numpy.ndarray, tuple)):
-                        if len(toaerrs) != self.psr[0].nobs:
-                            raise ValueError("TOA errors must be same length as input TOAs")
-
-                        toaerr = numpy.array(toaerrs, dtype=numpy.float64)
-                    elif isinstance(toaerrs, float):
-                        # single value given
-                        toaerr = toaerrs * numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
-                    else:
-                        raise TypeError("Input TOA errors are not of an allowed type")
-
-                nptoaerr[:] = toaerr
-                nporigerr[:] = numpy.copy(toaerr)  # store copy as original values
-
-                # currently set EFAC and EQUAD to zero by default
-                npefac[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
-                npequad[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
-
-    property inputobservatory:
-        """Get or set input TOA observatory site"""
-
-        def __get__(self):
-            return self.telescope()
-
-        def __set__(self, obs):
-            cdef int [:] _clockcorr = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].clockCorr)
-            cdef int [:] _delaycorr = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].delayCorr)
-            cdef size_t obssize = sizeof(observation)
-            _clockcorr.strides[0] = obssize
-            _delaycorr.strides[0] = obssize
-
-            npclockcorr = numpy.asarray(_clockcorr)
-            npdelaycorr = numpy.asarray(_delaycorr)
-
-            if self.inputtoas is not None:
-                if obs is None:
-                    raise ValueError("An observatory must be supplied with input TOAs")
-
-                if isinstance(obs, (list, numpy.ndarray, tuple)):
-                    if len(obs) != self.psr[0].nobs:
-                        raise ValueError("Number of supplied observatories must match TOAs")
-
-                    # observories will be truncated at 100 characters to fit in telID values
-                    obsv = numpy.array(obs, dtype="S100")
-                elif isinstance(obs, str):
+                    toaerr = numpy.array(toaerrs, dtype=numpy.float64)
+                elif isinstance(toaerrs, float):
                     # single value given
-                    obsv = numpy.array([obs for _ in range(self.psr[0].nobs)], dtype="S100")
+                    toaerr = toaerrs * numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
                 else:
-                    raise TypeError("Input TOA observatories are not of an allowed type")
+                    raise TypeError("Input TOA errors are not of an allowed type")
 
-                # set the observatories
-                for i in range(self.psr[0].nobs):
-                    strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obsv[i], 100 * sizeof(char))
+            nptoaerr[:] = toaerr
+            nporigerr[:] = numpy.copy(toaerr)  # store copy as original values
 
-                    # set which corrections to apply (taken from TEMPO2 readTimfile.C)
-                    if obsv[i][0] == "@" or obsv[i] == "bat":
-                        # times are barycentric arrival times anyway, so don't correct
-                        npclockcorr[i] = 0
-                        npdelaycorr[i] = 0
-                    elif obsv[i] in ["STL", "STL_FBAT"]:
-                        npclockcorr[i] = 0  # don't do clock corrections
-                        npdelaycorr[i] = 1
-                    else:
-                        npclockcorr[i] = 1
-                        npdelaycorr[i] = 1
+            # currently set EFAC and EQUAD to zero by default
+            npefac[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
+            npequad[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
 
-    property inputobsfreq:
-        """Get or set the observation frequency (in MHz)"""
+    def _inputobservatory(self):
+        """Set the input TOA observatory site"""
 
-        def __get__(self):
-            return self.freqs
+        cdef int [:] _clockcorr = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].clockCorr)
+        cdef int [:] _delaycorr = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].delayCorr)
+        cdef size_t obssize = sizeof(observation)
+        _clockcorr.strides[0] = obssize
+        _delaycorr.strides[0] = obssize
 
-        def __set__(self, freq):
-            cdef double [:] _freqsarr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].freq)
-            _freqsarr.strides[0] = sizeof(observation)
-            npfreqs = numpy.asarray(_freqsarr)
+        npclockcorr = numpy.asarray(_clockcorr)
+        npdelaycorr = numpy.asarray(_delaycorr)
 
-            if self.inputtoas is not None:
-                if freq is None:
-                    raise ValueError("Observing frequencies must be supplied with input TOAs")
+        if self.__input_toas is not None:
+            obs = self.__input_observatory
+            if obs is None:
+                raise ValueError("An observatory must be supplied with input TOAs")
 
-                if isinstance(freq, (list, numpy.ndarray, tuple)):
-                    if len(freq) != self.psr[0].nobs:
-                        raise ValueError("Number of supplied observation frequencies must match TOAs")
+            if isinstance(obs, (list, numpy.ndarray, tuple)):
+                if len(obs) != self.psr[0].nobs:
+                    raise ValueError("Number of supplied observatories must match TOAs")
 
-                    freqs = numpy.array(freq, dtype=numpy.float64)
-                elif isinstance(freq, (int, float)):
-                    # single value given
-                    freqs = freq * numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
+                # observories will be truncated at 100 characters to fit in telID values
+                obsv = numpy.array(obs, dtype="S100")
+            elif isinstance(obs, str):
+                # single value given
+                obsv = numpy.array([obs for _ in range(self.psr[0].nobs)], dtype="S100")
+            else:
+                raise TypeError("Input TOA observatories are not of an allowed type")
+
+            # set the observatories
+            for i in range(self.psr[0].nobs):
+                strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obsv[i], 100 * sizeof(char))
+
+                # set which corrections to apply (taken from TEMPO2 readTimfile.C)
+                if obsv[i][0] == "@" or obsv[i] == "bat":
+                    # times are barycentric arrival times anyway, so don't correct
+                    npclockcorr[i] = 0
+                    npdelaycorr[i] = 0
+                elif obsv[i] in ["STL", "STL_FBAT"]:
+                    npclockcorr[i] = 0  # don't do clock corrections
+                    npdelaycorr[i] = 1
                 else:
-                    raise TypeError("Input TOA observation frequencies are not of an allowed type")
+                    npclockcorr[i] = 1
+                    npdelaycorr[i] = 1
 
-                # set frequencies
-                npfreqs[:] = freqs
+    def _inputobsfreq(self):
+        """Set the input observation frequency (in MHz)"""
+
+        cdef double [:] _freqsarr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].freq)
+        _freqsarr.strides[0] = sizeof(observation)
+        npfreqs = numpy.asarray(_freqsarr)
+
+        if self.__input_toas is not None:
+            freq = self.__input_obsfreq
+            if freq is None:
+                raise ValueError("Observing frequencies must be supplied with input TOAs")
+
+            if isinstance(freq, (list, numpy.ndarray, tuple)):
+                if len(freq) != self.psr[0].nobs:
+                    raise ValueError("Number of supplied observation frequencies must match TOAs")
+
+                freqs = numpy.array(freq, dtype=numpy.float64)
+            elif isinstance(freq, (int, float)):
+                # single value given
+                freqs = freq * numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
+            else:
+                raise TypeError("Input TOA observation frequencies are not of an allowed type")
+
+            # set frequencies
+            npfreqs[:] = freqs
 
     property name:
         """Get or set pulsar name."""
