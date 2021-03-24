@@ -1632,9 +1632,16 @@ cdef class tempopulsar:
             if removemean != 'refphs':
                 formResiduals(self.psr,self.npsr,1 if removemean is True else 0)
             else:
+                # set anobservation from which all residuals will be
+                # referenced. Note this is equivalent to having a parameter
+                # file containing the line REFPHS TZR and also having values
+                # for TZRSITE, TZRMJD and TZRFREQ
                 if epoch is None and site is None and freq is None and self.psr[0].refphs == REFPHS_TZR:
+                    # refphs is already set
                     formResiduals(self.psr, self.npsr, 0)
                 else:
+                    # set values for the reference observation (stored within tzrsite, which gets
+                    # updated within the TEMPO2 formBatsAll function)
                     if epoch is not None:
                         # set reference epoch
                         self["TZRMJD"].val = epoch
