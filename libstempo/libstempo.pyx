@@ -621,7 +621,7 @@ def tempo2version():
 # but all attributes must be defined in the code
 
 cdef class tempopulsar:
-    """tempopulsar(parfile, timefile=None, warnings=False, fixprefiterrors=True,
+    """tempopulsar(parfile, timfile=None, warnings=False, fixprefiterrors=True,
                    dofit=False, maxobs=None, units=False, ephem=None, t2cmethod=None,
                    toas=None, toaerrs=None, observatory=None, obsfreq=1400)"""
 
@@ -643,7 +643,7 @@ cdef class tempopulsar:
     cpdef public object noisemodel
 
     cpdef object __input_toas  # input TOAs
-    cpdef object __input_toaerrs  # input TOA errors
+    cpdef object __input_toaerrs  # input TOA errors (us)
     cpdef object __input_observatory  # input observatories
     cpdef object __input_obsfreq   # input observation frequencies
 
@@ -914,9 +914,12 @@ cdef class tempopulsar:
                 except NameError:
                     raise TypeError("Input TOAs are not of an allowed type")
 
-                if isinstance(toamjd, numpy.float128):
-                    # convert to array is a single value
-                    toamjd = numpy.array([toamjd])
+                try:
+                    if isinstance(toamjd, numpy.float128):
+                        # convert to array is a single value
+                        toamjd = numpy.array([toamjd])
+                except UnboundLocalError:
+                    raise TypeError("Input TOAs are not of an allowed type")
 
             self.psr[0].nobs = len(toamjd)
             self.nobs_ = len(toamjd)
@@ -968,14 +971,14 @@ cdef class tempopulsar:
         npsatday[:] = days
         npsatsec[:] = toas - days
 
-        npdeleted[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
+        npdeleted[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int32)
         npphaseoff[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
-        npnflags[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
+        npnflags[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int32)
         npdmerr[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
-        npnjump[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.int)
-        npnfdjump[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.int)
-        npjump[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
-        npfdjump[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
+        npnjump[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.int32)
+        npnfdjump[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.int32)
+        npjump[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int32)
+        npfdjump[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int32)
 
         # fill in fake filename
         for i in range(self.psr[0].nobs):
@@ -998,7 +1001,7 @@ cdef class tempopulsar:
         _efac.strides[0] = obssize
         _equad.strides[0] = obssize
         nptoaerr = numpy.asarray(_toaerr)
-        nporigerr = numpy.asarray(_toaerr)
+        nporigerr = numpy.asarray(_origerr)
         npefac = numpy.asarray(_efac)
         npequad = numpy.asarray(_equad)
 
@@ -1023,8 +1026,8 @@ cdef class tempopulsar:
             nptoaerr[:] = toaerr
             nporigerr[:] = numpy.copy(toaerr)  # store copy as original values
 
-            # currently set EFAC and EQUAD to zero by default
-            npefac[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
+            # currently set EFAC and EQUAD to ones and zeros by default, respectively
+            npefac[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.float64)
             npequad[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
 
     def _inputobservatory(self):
@@ -2182,7 +2185,7 @@ cdef class tempopulsar:
 
         stdio.sprintf(timFile,"%s",<char *>timfile_bytes)
 
-        writeTim(timFile,&(self.psr[0]),'tempo2');
+        writeTim(timFile,&(self.psr[0]),'tempo2')
 
 
 # access tempo2 utility function
