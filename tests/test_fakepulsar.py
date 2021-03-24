@@ -220,12 +220,11 @@ class TestFakePulsar(unittest.TestCase):
         self.assertTrue((TMP_DIR / "fakepsr.tim").exists())
         self.assertTrue((TMP_DIR / "fakepsrtp.tim").exists())
 
-        print("Here")
+        t2.purgetim(str(TMP_DIR / "fakepsr.tim"))
+        t2.purgetim(str(TMP_DIR / "fakepsrtp.tim"))
 
         newfakepsr = t2.tempopulsar(parfile=self.parfile, timfile=str(TMP_DIR / "fakepsr.tim"), dofit=False)
         newfakepsrtp = t2.tempopulsar(parfile=self.parfile, timfile=str(TMP_DIR / "fakepsrtp.tim"), dofit=False)
-
-        print("Here")
 
         self.assertEqual(newfakepsrtp.nobs, len(self.obstimes))
         self.assertEqual(newfakepsrtp.nobs, newfakepsr.nobs)
