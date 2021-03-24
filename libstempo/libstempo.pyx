@@ -114,6 +114,7 @@ cdef extern from "tempo2.h":
     enum: MAX_OBSN_VAL
     enum: MAX_PARAMS
     enum: MAX_JUMPS
+    enum: MAX_FLAGS
     enum: MAX_FLAG_LEN
     enum: MAX_FIT
     enum: T2C_TEMPO
@@ -186,6 +187,10 @@ cdef extern from "tempo2.h":
         long double phase      # the phase (cycles)
         double efac            # Error multiplication factor
         double equad           # Value to add in quadrature
+        int jump[MAX_FLAGS]    # Jump region
+        int obsNjump           # Number of jumps for this observation
+        int fdjump[MAX_FLAGS]
+        int obsNfdjump
 
     ctypedef int param_label
 
@@ -649,7 +654,7 @@ cdef class tempopulsar:
                   fixprefiterrors=True, dofit=False, maxobs=None,
                   units=False, ephem=None, clk=None, t2cmethod=None,
                   toas=None, toaerrs=None, observatory=None,
-                  obsfreq=1400):
+                  obsfreq=1440):
 
         # initialize
 
@@ -928,6 +933,10 @@ cdef class tempopulsar:
         cdef int [:] _nflags = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].nFlags)
         cdef double [:] _phaseoff = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].phaseOffset)
         cdef double [:] _dmerr = <double [:self.psr[0].nobs]>&(self.psr[0].obsn[0].toaDMErr)
+        cdef int [:] _obsNjump = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].obsNjump)
+        cdef int [:] _obsNfdjump = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].obsNfdjump)
+        cdef int [:] _jump = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].jump[0])
+        cdef int [:] _fdjump = <int [:self.psr[0].nobs]>&(self.psr[0].obsn[0].fdjump[0])
         cdef size_t obssize = sizeof(observation)
         _satday.strides[0] = obssize
         _satsec.strides[0] = obssize
@@ -935,6 +944,10 @@ cdef class tempopulsar:
         _nflags.strides[0] = obssize
         _phaseoff.strides[0] = obssize
         _dmerr.strides[0] = obssize
+        _obsNjump.strides[0] = obssize
+        _obsNfdjump.strides[0] = obssize
+        _jump.strides[0] = obssize
+        _fdjump.strides[0] = obssize
 
         # set the TOA values
         self.stoas[:] = toas
@@ -946,6 +959,10 @@ cdef class tempopulsar:
         npphaseoff = numpy.asarray(_phaseoff)
         npnflags = numpy.asarray(_nflags)
         npdmerr = numpy.asarray(_dmerr)
+        npnjump = numpy.asarray(_obsNjump)
+        npnfdjump = numpy.asarray(_obsNfdjump)
+        npjump = numpy.asarray(_jump)
+        npfdjump = numpy.asarray(_fdjump)
 
         days = numpy.floor(toas).astype(numpy.float128)
         npsatday[:] = days
@@ -955,6 +972,10 @@ cdef class tempopulsar:
         npphaseoff[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
         npnflags[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
         npdmerr[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.float64)
+        npnjump[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.int)
+        npnfdjump[:] = numpy.ones(self.psr[0].nobs, dtype=numpy.int)
+        npjump[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
+        npfdjump[:] = numpy.zeros(self.psr[0].nobs, dtype=numpy.int)
 
         # fill in fake filename
         for i in range(self.psr[0].nobs):
