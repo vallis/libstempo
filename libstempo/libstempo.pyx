@@ -902,24 +902,14 @@ cdef class tempopulsar:
         toas = self.__input_toas
 
         if toas is not None:
-            if isinstance(toas, (list, numpy.ndarray, tuple)):
-                toamjd = numpy.array(toas, dtype=numpy.float128)
-            elif isinstance(toas, (float, numpy.float128)):
-                toamjd = numpy.array([toas], dtype=numpy.float128)
+            if isinstance(toas, (list, numpy.ndarray, tuple, float, numpy.float128)):
+                toamjd = numpy.atleast_1d(toas).astype(numpy.float128)
             else:
                 # check if using an astropy time object
                 try:
-                    if isinstance(toas, Time):
-                        toamjd = toas.mjd.astype(numpy.float128)  # make sure in MJD
-                except NameError:
-                    raise TypeError("Input TOAs are not of an allowed type")
-
-                try:
-                    if isinstance(toamjd, numpy.float128):
-                        # convert to array is a single value
-                        toamjd = numpy.array([toamjd])
-                except UnboundLocalError:
-                    raise TypeError("Input TOAs are not of an allowed type")
+                    toamjd = numpy.atleast_1d(toas.mjd).astype(numpy.float128)  # make sure in MJD
+                except Exception as e:
+                    raise TypeError("Input TOAs are not of an allowed type: {}".format(e))
 
             self.psr[0].nobs = len(toamjd)
             self.nobs_ = len(toamjd)
