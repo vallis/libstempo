@@ -1,11 +1,28 @@
 # libstempo
 
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/vallis/libstempo)](https://github.com/vallis/libstempo/releases/latest)
+[![PyPI](https://img.shields.io/pypi/v/libstempo)](https://pypi.org/project/libstempo/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/libstempo.svg)](https://anaconda.org/conda-forge/libstempo)
+[![libstempo CI tests](https://github.com/vallis/libstempo/actions/workflows/ci_tests.yml/badge.svg)](https://github.com/vallis/libstempo/actions/workflows/ci_tests.yml)
+
+
+[![Python Versions](https://img.shields.io/badge/python-3.6%2C%203.7%2C%203.8%2C%203.9-blue.svg)]()
+[![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/vallis/libstempo/blob/master/LICENSE)
+
 `libstempo` is a Python wrapper around the [tempo2](https://bitbucket.org/psrsoft/tempo2/src/master/) pulsar timing package.
 
 
 ## Installation
 
-To use `libstempo`, tempo2 must be installed as a prerequisite. Currently there are two recommended methods to do this.
+### conda Install
+`libstempo` is installed most simply via conda as the `tempo` dependency
+is bundled in the conda recipe. Simply use
+```bash
+conda install -c conda-forge libstempo
+```
+
+### pip Install
+To use `libstempo` with pip (or from source), tempo2 must be installed as a prerequisite. Currently there are two recommended methods to do this.
 
 1. Install via script. 
     ```bash
