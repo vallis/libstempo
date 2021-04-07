@@ -1,7 +1,8 @@
-import subprocess
 import logging
-from pathlib import Path
 import os
+import subprocess
+import warnings
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -24,20 +25,18 @@ def find_tempo2_runtime():
         out = subprocess.check_output("which tempo2", shell=True)
         out = out.decode().strip()
     except subprocess.CalledProcessError:
-        raise RuntimeError(
-            ("tempo2 does not appear to be in your path. Please make sure the executable is in your path")
-        )
-
-    # since this would be in a bin/ directory, navigate back to root and check share/
-    share_dir = Path(out).parents[1] / "share"
-
-    if share_dir.exists():
-        # loop through all directories in share
-        for d in share_dir.iterdir():
-            if d.is_dir():
-                # if this directory contains the runtime dirs then set this to be the runtime dir
-                dirs = [dd.stem for dd in d.iterdir() if dd.is_dir()]
-                if all(rd in dirs for rd in RUNTIME_DIRS):
-                    return str(d)
+        warnings.warn("Could not find tempo2 executable in your path")
     else:
-        raise FileNotFoundError(f"Directory {str(share_dir)} does not exist. Can't find T2runtime")
+
+        # since this would be in a bin/ directory, navigate back to root and check share/
+        share_dir = Path(out).parents[1] / "share"
+
+        if share_dir.exists():
+            # loop through all directories in share
+            for d in share_dir.iterdir():
+                if d.is_dir():
+                    # if this directory contains the runtime dirs then set this to be the runtime dir
+                    dirs = [dd.stem for dd in d.iterdir() if dd.is_dir()]
+                    if all(rd in dirs for rd in RUNTIME_DIRS):
+                        return str(d)
+    raise RuntimeError("Can't find T2runtime from inspection. Set TEMPO2 environment variable")

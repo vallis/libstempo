@@ -27,3 +27,4 @@ cd ..
 
 rm -rf psrsoft-tempo2-*
 rm -rf 2020.11.1.tar.gz
+echo "Set TEMPO2 environment variable to ${TEMPO2} to make things run more smoothly."
