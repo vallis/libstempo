@@ -1624,7 +1624,7 @@ cdef class tempopulsar:
             if removemean != 'refphs':
                 formResiduals(self.psr,self.npsr,1 if removemean is True else 0)
             else:
-                # set anobservation from which all residuals will be
+                # set an observation from which all residuals will be
                 # referenced. Note this is equivalent to having a parameter
                 # file containing the line REFPHS TZR and also having values
                 # for TZRSITE, TZRMJD and TZRFREQ
