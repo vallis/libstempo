@@ -15,13 +15,15 @@
 ## Installation
 
 ### conda Install
-`libstempo` is installed most simply via conda as the `tempo` dependency
+
+`libstempo` is installed most simply via [conda](https://docs.conda.io/en/latest/) as the `tempo` dependency
 is bundled in the conda recipe. Simply use
 ```bash
 conda install -c conda-forge libstempo
 ```
 
 ### pip Install
+
 To use `libstempo` with pip (or from source), tempo2 must be installed as a prerequisite. Currently there are two recommended methods to do this.
 
 1. Install via script. 
