@@ -28,7 +28,7 @@ except ImportError:
     pass
 
 from libc cimport stdlib, stdio
-from libc.string cimport strncpy
+from libc.string cimport strncpy, memset
 
 from cython cimport view
 
@@ -972,6 +972,8 @@ cdef class tempopulsar:
 
         # fill in fake filename
         for i in range(self.psr[0].nobs):
+            # make sure fname array is empty
+            memset(<char *>&(self.psr[0].obsn[i].fname[0]), 0, MAX_FILELEN * sizeof(char))
             strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE", 4 * sizeof(char))
 
         self._inputtoaerrs()
@@ -2173,6 +2175,7 @@ def rad2hms(value):
 
     return retstr
 
+
 def rewritetim(timfile):
     """rewritetim(timfile)
 
@@ -2196,13 +2199,15 @@ def rewritetim(timfile):
 
     return out.name
 
+
 def purgetim(timfile):
     """purgetim(timfile)
 
     Remove 'MODE 1' lines from tim file."""
 
-    lines = filter(lambda l: 'MODE 1' not in l,open(timfile,'r').readlines())
+    lines = filter(lambda l: 'MODE 1' not in l, open(timfile,'r').readlines())
     open(timfile,'w').writelines(lines)
+
 
 # load observatory aliases from tempo2 runtime
 aliases, ids = {}, {}
