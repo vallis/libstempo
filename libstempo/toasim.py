@@ -159,7 +159,8 @@ def make_ideal(psr):
     psr.fit()
 
 
-def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
+def add_efac(psr, efac=1.0, flagid=None, flags=None,
+             return_vec=False, seed=None):
     """Add nominal TOA errors, multiplied by `efac` factor.
     Optionally take a pseudorandom-number-generator seed."""
 
@@ -184,8 +185,12 @@ def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
 
     psr.stoas[:] += efacvec * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
 
+    if return_vec:
+        return efacvec
 
-def add_equad(psr, equad, flagid=None, flags=None, seed=None):
+
+def add_equad(psr, equad, flagid=None, flags=None,
+              return_vec=False, seed=None):
     """Add quadrature noise of rms `equad` [s].
     Optionally take a pseudorandom-number-generator seed."""
 
@@ -209,6 +214,9 @@ def add_equad(psr, equad, flagid=None, flags=None, seed=None):
                 equadvec[ind] = equad[ct]
 
     psr.stoas[:] += (equadvec / day) * N.random.randn(psr.nobs)
+
+    if return_vec:
+        return equadvec
 
 
 def quantize(times, dt=1):
@@ -264,7 +272,8 @@ def quantize_fast(times, flags=None, dt=1.0):
 # print N.sum((t - t2)**2), N.all(U == U2)
 
 
-def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, seed=None):
+def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1,
+               return_vec=False, seed=None):
     """Add correlated quadrature noise of rms `ecorr` [s],
     with coarse-graining time `coarsegrain` [days].
     Optionally take a pseudorandom-number-generator seed."""
@@ -294,6 +303,9 @@ def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, seed=None):
                 ecorrvec[ind] = ecorr[ct]
 
     psr.stoas[:] += (1 / day) * N.dot(U * ecorrvec, N.random.randn(U.shape[1]))
+
+    if return_vec:
+        return np.dot(U * ecorrvec, np.ones(U.shape[1]))
 
 
 def add_rednoise(psr, A, gamma, components=10, seed=None):
