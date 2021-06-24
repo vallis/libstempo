@@ -159,8 +159,7 @@ def make_ideal(psr):
     psr.fit()
 
 
-def add_efac(psr, efac=1.0, flagid=None, flags=None,
-             return_vec=False, seed=None):
+def add_efac(psr, efac=1.0, flagid=None, flags=None, return_vec=False, seed=None):
     """Add nominal TOA errors, multiplied by `efac` factor.
     Optionally take a pseudorandom-number-generator seed."""
 
@@ -189,8 +188,7 @@ def add_efac(psr, efac=1.0, flagid=None, flags=None,
         return efacvec
 
 
-def add_equad(psr, equad, flagid=None, flags=None,
-              return_vec=False, seed=None):
+def add_equad(psr, equad, flagid=None, flags=None, return_vec=False, seed=None):
     """Add quadrature noise of rms `equad` [s].
     Optionally take a pseudorandom-number-generator seed."""
 
@@ -272,8 +270,7 @@ def quantize_fast(times, flags=None, dt=1.0):
 # print N.sum((t - t2)**2), N.all(U == U2)
 
 
-def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1,
-               return_vec=False, seed=None):
+def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, return_vec=False, seed=None):
     """Add correlated quadrature noise of rms `ecorr` [s],
     with coarse-graining time `coarsegrain` [days].
     Optionally take a pseudorandom-number-generator seed."""
@@ -938,6 +935,7 @@ def computeORFMatrix(psr):
 
     return ORF
 
+
 def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
     """Compute epoch averaged TOAs including uncertainty
 
@@ -965,7 +963,7 @@ def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
             bucket_ref.append(times[i])
             bucket_ind.append([i])
 
-    avetoas = N.array([N.mean(times[l]) for l in bucket_ind],'d')
+    avetoas = N.array([N.mean(times[l]) for l in bucket_ind], "d")
 
     if flags is not None:
         aveflags = N.array([flags[l[0]] for l in bucket_ind])
@@ -973,13 +971,13 @@ def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
     aveerr = N.zeros(len(bucket_ind))
     averes = N.zeros(len(bucket_ind))
 
-    for i,l in enumerate(bucket_ind):
+    for i, l in enumerate(bucket_ind):
         M = N.ones(len(l))
-        C = N.diag(err[l]**2)
+        C = N.diag(err[l] ** 2)
         if ecorr is not None:
             C += N.ones((len(l), len(l))) * ecorr[l[0]]
 
-        avr = 1/N.dot(M, N.dot(N.linalg.inv(C), M))
+        avr = 1 / N.dot(M, N.dot(N.linalg.inv(C), M))
         aveerr[i] = N.sqrt(avr)
         averes[i] = avr * N.dot(M, N.dot(N.linalg.inv(C), res[l]))
 
