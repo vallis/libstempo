@@ -305,7 +305,7 @@ def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1,
     psr.stoas[:] += (1 / day) * N.dot(U * ecorrvec, N.random.randn(U.shape[1]))
 
     if return_vec:
-        return np.dot(U * ecorrvec, np.ones(U.shape[1]))
+        return N.dot(U * ecorrvec, N.ones(U.shape[1]))
 
 
 def add_rednoise(psr, A, gamma, components=10, seed=None):
@@ -953,7 +953,7 @@ def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
     from PAL2 (Ellis & van Haasteren 2017)
     https://doi.org/10.5281/zenodo.251456
     """
-    isort = np.argsort(times)
+    isort = N.argsort(times)
 
     bucket_ref = [times[isort[0]]]
     bucket_ind = [[isort[0]]]
@@ -965,23 +965,23 @@ def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
             bucket_ref.append(times[i])
             bucket_ind.append([i])
 
-    avetoas = np.array([np.mean(times[l]) for l in bucket_ind],'d')
+    avetoas = N.array([N.mean(times[l]) for l in bucket_ind],'d')
 
     if flags is not None:
-        aveflags = np.array([flags[l[0]] for l in bucket_ind])
+        aveflags = N.array([flags[l[0]] for l in bucket_ind])
 
-    aveerr = np.zeros(len(bucket_ind))
-    averes = np.zeros(len(bucket_ind))
+    aveerr = N.zeros(len(bucket_ind))
+    averes = N.zeros(len(bucket_ind))
 
     for i,l in enumerate(bucket_ind):
-        M = np.ones(len(l))
-        C = np.diag(err[l]**2)
+        M = N.ones(len(l))
+        C = N.diag(err[l]**2)
         if ecorr is not None:
-            C += np.ones((len(l), len(l))) * ecorr[l[0]]
+            C += N.ones((len(l), len(l))) * ecorr[l[0]]
 
-        avr = 1/np.dot(M, np.dot(np.linalg.inv(C), M))
-        aveerr[i] = np.sqrt(avr)
-        averes[i] = avr * np.dot(M, np.dot(np.linalg.inv(C), res[l]))
+        avr = 1/N.dot(M, N.dot(N.linalg.inv(C), M))
+        aveerr[i] = N.sqrt(avr)
+        averes[i] = avr * N.dot(M, N.dot(N.linalg.inv(C), res[l]))
 
     if flags is not None:
         return avetoas, aveerr, averes, aveflags
