@@ -937,3 +937,53 @@ def computeORFMatrix(psr):
                 ORF[ll, kk] = 2.0
 
     return ORF
+
+def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
+    """Compute epoch averaged TOAs including uncertainty
+
+    :param times: TOAs in seconds
+    :param res: Residuals in seconds
+    :param err: Scaled (by EFAC and EQUAD) error bars in seconds
+    :param ecorr: (optional) ECORR value for each point in s^2 [default None]
+    :param dt: (optional) Time bins for averaging [default 1 s]
+
+    :returns: average TOAs, error bars, residuals in seconds
+    :returns: (optional) average flags
+
+    from PAL2 (Ellis & van Haasteren 2017)
+    https://doi.org/10.5281/zenodo.251456
+    """
+    isort = np.argsort(times)
+
+    bucket_ref = [times[isort[0]]]
+    bucket_ind = [[isort[0]]]
+
+    for i in isort[1:]:
+        if times[i] - bucket_ref[-1] < dt:
+            bucket_ind[-1].append(i)
+        else:
+            bucket_ref.append(times[i])
+            bucket_ind.append([i])
+
+    avetoas = np.array([np.mean(times[l]) for l in bucket_ind],'d')
+
+    if flags is not None:
+        aveflags = np.array([flags[l[0]] for l in bucket_ind])
+
+    aveerr = np.zeros(len(bucket_ind))
+    averes = np.zeros(len(bucket_ind))
+
+    for i,l in enumerate(bucket_ind):
+        M = np.ones(len(l))
+        C = np.diag(err[l]**2)
+        if ecorr is not None:
+            C += np.ones((len(l), len(l))) * ecorr[l[0]]
+
+        avr = 1/np.dot(M, np.dot(np.linalg.inv(C), M))
+        aveerr[i] = np.sqrt(avr)
+        averes[i] = avr * np.dot(M, np.dot(np.linalg.inv(C), res[l]))
+
+    if flags is not None:
+        return avetoas, aveerr, averes, aveflags
+    else:
+        return avetoas, aveerr, averes
