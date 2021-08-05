@@ -30,12 +30,10 @@ To use `libstempo` with pip (or from source), tempo2 must be installed as a prer
     ```bash
     curl -sSL https://raw.githubusercontent.com/vallis/libstempo/master/install_tempo2.sh | sh
     ```
-    This will install the tempo2 library in a local directory (`$HOME/.local`). This method is recommended if you do not need to use tempo2 directly but just need the installation for `libstempo`.
-    This script also takes in an option argument with a path to the
-    install location. For example you could run:
+    This will install the tempo2 library in a local directory (`$HOME/.local`). This method is recommended if you do not need to use tempo2 directly but just need the installation for `libstempo`. You can also set the path to the install location. For example, to install in `/usr/local`, you could run:
     ```bash
     # need sudo if installing in a restricted location
-    curl -sSL https://raw.githubusercontent.com/vallis/libstempo/master/install_tempo2.sh /usr/local | sudo sh -
+    curl -sSL https://raw.githubusercontent.com/vallis/libstempo/master/install_tempo2.sh | sudo sh -s /usr/local
     ``` 
 2. Install via the [instructions](https://bitbucket.org/psrsoft/tempo2/src/master/README.md) on the tempo2 homepage. If this method is used, the `TEMPO2` environment variable will need to be set to use `libstempo`.
 
