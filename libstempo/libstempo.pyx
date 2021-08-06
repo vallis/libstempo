@@ -1,3 +1,5 @@
+#cython: language_level=3
+
 import os, sys, math, re, time
 from distutils.version import StrictVersion
 
