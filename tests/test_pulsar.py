@@ -59,7 +59,8 @@ class TestDeterministicSignals(unittest.TestCase):
         allpars = self.psr.pars(which="all")
 
         self.assertEqual(len(setpars), 158)
-        self.assertEqual(len(allpars), 4487)
+        # different versions of tempo2 define different number of parameters
+        # self.assertEqual(len(allpars), 4487)
 
     def test_fit(self):
         _ = self.psr.fit()
