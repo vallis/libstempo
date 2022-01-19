@@ -296,18 +296,33 @@ def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, seed=None):
     psr.stoas[:] += (1 / day) * N.dot(U * ecorrvec, N.random.randn(U.shape[1]))
 
 
-def add_rednoise(psr, A, gamma, components=10, seed=None):
-    """Add red noise with P(f) = A^2 / (12 pi^2) (f year)^-gamma,
+def add_rednoise(psr, A, gamma, components=10, tspan=None, seed=None):
+    """
+    Add red noise with P(f) = A^2 / (12 pi^2) (f year)^-gamma,
     using `components` Fourier bases.
-    Optionally take a pseudorandom-number-generator seed."""
+    Optionally take a pseudorandom-number-generator seed.
+    :param psr: libstempo pulsar object.
+    :param A: Power law red noise amplitude at 1/yr.
+    :param gamma: Power law red noise spectral index.
+    :param components: Number of frequency components to use in red noise
+        injection.
+    :param tspan: Time span to use for red noise injection [days]. Frequencies
+        are injected from 1/tspan to components/tspan. Time span of pulsar used
+        when not furnished.
+    :param seed: Random number seed for reproducibility. 
+    """
 
     if seed is not None:
         N.random.seed(seed)
 
     t = psr.toas()
     minx, maxx = N.min(t), N.max(t)
-    x = (t - minx) / (maxx - minx)
-    T = (day / year) * (maxx - minx)
+    if tspan is None:
+        x = (t - minx) / (maxx - minx)
+        T = (day / year) * (maxx - minx)
+    else:
+        x = (t - minx) / tspan
+        T = (day / year) * tspan
 
     size = 2 * components
     F = N.zeros((psr.nobs, size), "d")
