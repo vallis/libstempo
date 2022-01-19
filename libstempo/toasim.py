@@ -309,7 +309,7 @@ def add_rednoise(psr, A, gamma, components=10, tspan=None, seed=None):
     :param tspan: Time span to use for red noise injection [days]. Frequencies
         are injected from 1/tspan to components/tspan. Time span of pulsar used
         when not furnished.
-    :param seed: Random number seed for reproducibility. 
+    :param seed: Random number seed for reproducibility.
     """
 
     if seed is not None:
