@@ -68,7 +68,7 @@ else:
 
 setup(
     name="libstempo",
-    version="2.4.3",  # remember to change it in __init__.py
+    version="2.4.4",  # remember to change it in __init__.py
     description="A Python wrapper for tempo2",
     author="Michele Vallisneri",
     author_email="vallis@vallis.org",
