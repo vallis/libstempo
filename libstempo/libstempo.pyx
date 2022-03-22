@@ -1206,7 +1206,7 @@ cdef class tempopulsar:
             return tuple(key for key in self.pardict if self.pardict[key].set)
         elif which == 'all':
             return tuple(self.pardict)
-        elif isinstance(which,collections.Iterable):
+        elif isinstance(which,collections.abc.Iterable):
             # to support vals() with which=sequence
             return which
         else:
@@ -1226,7 +1226,7 @@ cdef class tempopulsar:
             return sum(self.pardict[par].fit for par in self.pardict if par not in self.excludepars)
 
     # --- dictionary access to parameters
-    #     TODO: possibly implement the full (nonmutable) dict interface by way of collections.Mapping
+    #     TODO: possibly implement the full (nonmutable) dict interface by way of collections.abc.Mapping
     def __contains__(self,key):
         return key in self.pardict
 
@@ -1262,10 +1262,10 @@ cdef class tempopulsar:
                 return numpy.array([self.pardict[par].val for par in self.pars(which)],numpy.object)
             else:
                 return numpy.fromiter((self.pardict[par].val for par in self.pars(which)),numpy.longdouble)
-        elif isinstance(values,collections.Mapping):
+        elif isinstance(values,collections.abc.Mapping):
             for par in values:
                 self.pardict[par].val = values[par]
-        elif isinstance(values,collections.Iterable):
+        elif isinstance(values,collections.abc.Iterable):
             for par,val in zip(self.pars(which),values):
                 self.pardict[par].val = val
         else:
@@ -1281,10 +1281,10 @@ cdef class tempopulsar:
                 return numpy.array([self.pardict[par].err for par in self.pars(which)],numpy.object)
             else:
                 return numpy.fromiter((self.pardict[par].err for par in self.pars(which)),numpy.longdouble)
-        elif isinstance(values,collections.Mapping):
+        elif isinstance(values,collections.abc.Mapping):
             for par in values:
                 self.pardict[par].err = values[par]
-        elif isinstance(values,collections.Iterable):
+        elif isinstance(values,collections.abc.Iterable):
             for par,val in zip(self.pars(which),values):
                 self.pardict[par].err = val
         else:
