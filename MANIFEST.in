@@ -22,4 +22,7 @@ include demo/libstempo-toasim-demo.ipynb
 include libstempo/data/B1953+29_NANOGrav_dfg+12.par
 include libstempo/data/B1953+29_NANOGrav_dfg+12.tim
 include libstempo/data/J1909-3744_NANOGrav_dfg+12.par 
-include libstempo/data/J1909-3744_NANOGrav_dfg+12.tim 
+include libstempo/data/J1909-3744_NANOGrav_dfg+12.tim
+include tests/test_fakepulsar.py
+include tests/test_imports.py
+include tests/test_pulsar.py

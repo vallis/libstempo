@@ -26,9 +26,6 @@ requires = [
     "setuptools>=40.8.0",
     "wheel", # ephem package likes to have wheel installed
     "Cython>=0.22",
-    'numpy==1.15.0; python_version=="3.6"',
-    'numpy==1.15.0; python_version=="3.7"',
-    'numpy==1.17.3; python_version=="3.8"',
-    'numpy==1.19.3; python_version=="3.9"',
+    "oldest-supported-numpy",
 ]
 build-backend = "setuptools.build_meta"
