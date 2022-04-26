@@ -55,7 +55,11 @@ class TestFakePulsar(unittest.TestCase):
         # pass string rather than number for TOA
         with self.assertRaises(TypeError):
             t2.tempopulsar(
-                parfile=self.parfile, toas="blah", toaerrs=self.toaerr, observatory=self.observatory, obsfreq=self.freq,
+                parfile=self.parfile,
+                toas="blah",
+                toaerrs=self.toaerr,
+                observatory=self.observatory,
+                obsfreq=self.freq,
             )
 
         # pass string rather than number for TOA error
@@ -71,7 +75,11 @@ class TestFakePulsar(unittest.TestCase):
         # pass integer rather than string for observatory
         with self.assertRaises(TypeError):
             t2.tempopulsar(
-                parfile=self.parfile, toas=self.obstimes, toaerrs=self.toaerr, observatory=0, obsfreq=self.freq,
+                parfile=self.parfile,
+                toas=self.obstimes,
+                toaerrs=self.toaerr,
+                observatory=0,
+                obsfreq=self.freq,
             )
 
         # pass string rather than number for obsfreq
@@ -115,7 +123,11 @@ class TestFakePulsar(unittest.TestCase):
         times = Time(self.obstimes, format="mjd", scale="utc")
 
         psr = t2.tempopulsar(
-            parfile=self.parfile, toas=times, toaerrs=self.toaerr, observatory=self.observatory, obsfreq=self.freq,
+            parfile=self.parfile,
+            toas=times,
+            toaerrs=self.toaerr,
+            observatory=self.observatory,
+            obsfreq=self.freq,
         )
 
         self.assertEqual(len(self.obstimes), psr.nobs)

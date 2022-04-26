@@ -20,7 +20,7 @@ import scipy.special as ss
 from scipy.integrate import odeint
 from scipy.interpolate import interp1d
 
-SOLAR2S = sc.G / sc.c ** 3 * 1.98855e30
+SOLAR2S = sc.G / sc.c**3 * 1.98855e30
 KPC2S = sc.parsec / sc.c * 1e3
 MPC2S = sc.parsec / sc.c * 1e6
 
@@ -56,7 +56,7 @@ def get_edot(F, mc, e):
     # chirp mass
     mc *= SOLAR2S
 
-    dedt = -304 / (15 * mc) * (2 * np.pi * mc * F) ** (8 / 3) * e * (1 + 121 / 304 * e ** 2) / ((1 - e ** 2) ** (5 / 2))
+    dedt = -304 / (15 * mc) * (2 * np.pi * mc * F) ** (8 / 3) * e * (1 + 121 / 304 * e**2) / ((1 - e**2) ** (5 / 2))
 
     return dedt
 
@@ -78,10 +78,10 @@ def get_Fdot(F, mc, e):
 
     dFdt = (
         48
-        / (5 * np.pi * mc ** 2)
+        / (5 * np.pi * mc**2)
         * (2 * np.pi * mc * F) ** (11 / 3)
-        * (1 + 73 / 24 * e ** 2 + 37 / 96 * e ** 4)
-        / ((1 - e ** 2) ** (7 / 2))
+        * (1 + 73 / 24 * e**2 + 37 / 96 * e**4)
+        / ((1 - e**2) ** (7 / 2))
     )
 
     return dFdt
@@ -111,8 +111,8 @@ def get_gammadot(F, mc, q, e):
         * np.pi
         * F
         * (2 * np.pi * F * m) ** (2 / 3)
-        / (1 - e ** 2)
-        * (1 + 0.25 * (2 * np.pi * F * m) ** (2 / 3) / (1 - e ** 2) * (26 - 15 * e ** 2))
+        / (1 - e**2)
+        * (1 + 0.25 * (2 * np.pi * F * m) ** (2 / 3) / (1 - e**2) * (26 - 15 * e**2))
     )
 
     return dgdt
@@ -232,7 +232,7 @@ def get_bn(n, mc, dl, F, e):
 
     amp = n * mc ** (5 / 3) * omega ** (2 / 3) / dl
 
-    ret = -amp * np.sqrt(1 - e ** 2) * (ss.jn(n - 2, n * e) - 2 * ss.jn(n, n * e) + ss.jn(n + 2, n * e))
+    ret = -amp * np.sqrt(1 - e**2) * (ss.jn(n - 2, n * e) - 2 * ss.jn(n, n * e) + ss.jn(n + 2, n * e))
 
     return ret
 
