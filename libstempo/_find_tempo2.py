@@ -16,9 +16,10 @@ def find_tempo2_runtime():
     """
 
     # first check for local install (i.e. from using install_tempo2.sh)
-    local_path = Path(HOME) / ".local/share/tempo2"
-    if local_path.exists():
-        return str(local_path)
+    if HOME is not None:
+        local_path = Path(HOME) / ".local/share/tempo2"
+        if local_path.exists():
+            return str(local_path)
 
     # if not, check for tempo2 binary in path
     try:
