@@ -334,7 +334,7 @@ def add_rednoise(psr, A, gamma, components=10, tspan=None, seed=None):
 
         f[2 * i] = f[2 * i + 1] = (i + 1) / T
 
-    norm = A ** 2 * year ** 2 / (12 * math.pi ** 2 * T)
+    norm = A**2 * year**2 / (12 * math.pi**2 * T)
     prior = norm * f ** (-gamma)
 
     y = N.sqrt(prior) * N.random.randn(size)
@@ -350,7 +350,7 @@ def add_dm(psr, A, gamma, components=10, seed=None):
         N.random.seed(seed)
 
     t = psr.toas()
-    v = DMk / psr.freqs ** 2
+    v = DMk / psr.freqs**2
 
     minx, maxx = N.min(t), N.max(t)
     x = (t - minx) / (maxx - minx)
@@ -366,7 +366,7 @@ def add_dm(psr, A, gamma, components=10, seed=None):
 
         f[2 * i] = f[2 * i + 1] = (i + 1) / T
 
-    norm = A ** 2 * year ** 2 / (12 * math.pi ** 2 * T)
+    norm = A**2 * year**2 / (12 * math.pi**2 * T)
     prior = norm * f ** (-gamma)
 
     y = N.sqrt(prior) * N.random.randn(size)
@@ -873,7 +873,7 @@ def createGWB(
             fspec_ex = extrap1d(fspec_in)
             hcf = 10.0 ** fspec_ex(N.log10(f))
 
-    C = 1 / 96 / N.pi ** 2 * hcf ** 2 / f ** 3 * dur * howml
+    C = 1 / 96 / N.pi**2 * hcf**2 / f**3 * dur * howml
 
     # inject residuals in the frequency domain
     Res_f = N.dot(M, w)

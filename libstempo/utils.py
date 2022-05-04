@@ -81,4 +81,4 @@ def powerlaw(f, log10_A=-16, gamma=5):
     """
 
     fyr = 1 / 3.16e7
-    return (10 ** log10_A) ** 2 / 12.0 / np.pi ** 2 * fyr ** (gamma - 3) * f ** (-gamma)
+    return (10**log10_A) ** 2 / 12.0 / np.pi**2 * fyr ** (gamma - 3) * f ** (-gamma)

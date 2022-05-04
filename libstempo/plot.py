@@ -14,7 +14,7 @@ def plotres(psr, deleted=False, group=None, **kwargs):
         res, t, errs = res[psr.deleted == 0], t[psr.deleted == 0], errs[psr.deleted == 0]
         print("Plotting {0}/{1} nondeleted points.".format(len(res), psr.nobs))
 
-    meanres = math.sqrt(N.mean(res ** 2)) / 1e-6
+    meanres = math.sqrt(N.mean(res**2)) / 1e-6
 
     if group is None:
         i = N.argsort(t)

@@ -12,7 +12,7 @@ def chisq(psr, formbats=False):
 
     res, err = psr.residuals(removemean=False)[psr.deleted == 0], psr.toaerrs[psr.deleted == 0]
 
-    res -= numpy.sum(res / err ** 2) / numpy.sum(1 / err ** 2)
+    res -= numpy.sum(res / err**2) / numpy.sum(1 / err**2)
 
     return numpy.sum(res * res / (1e-12 * err * err))
 
@@ -26,20 +26,20 @@ def dchisq(psr, formbats=False, renormalize=True):
 
     res, err = psr.residuals(removemean=False)[psr.deleted == 0], psr.toaerrs[psr.deleted == 0]
 
-    res -= numpy.sum(res / err ** 2) / numpy.sum(1 / err ** 2)
+    res -= numpy.sum(res / err**2) / numpy.sum(1 / err**2)
 
     # bats already updated by residuals(); skip constant-phase column
     M = psr.designmatrix(updatebats=False, fixunits=True, fixsigns=True)[psr.deleted == 0, 1:]
 
     # renormalize design-matrix columns
     if renormalize:
-        norm = numpy.sqrt(numpy.sum(M ** 2, axis=0))
+        norm = numpy.sqrt(numpy.sum(M**2, axis=0))
         M /= norm
     else:
         norm = 1.0
 
     # compute chisq derivative, de-renormalize
-    dr = -2 * numpy.dot(M.T, res / (1e-12 * err ** 2)) * norm
+    dr = -2 * numpy.dot(M.T, res / (1e-12 * err**2)) * norm
 
     return dr
 
@@ -120,7 +120,7 @@ def glsfit(psr, renormalize=True):
     C = numpy.diag((err * 1e-6) ** 2)
 
     if renormalize:
-        norm = numpy.sqrt(numpy.sum(M ** 2, axis=0))
+        norm = numpy.sqrt(numpy.sum(M**2, axis=0))
         M /= norm
     else:
         norm = numpy.ones_like(M[0, :])

@@ -1,5 +1,5 @@
 pip>=21.0.1
-black~=19.10b0
+black~=22.3.0
 flake8~=3.7.7
 pre-commit~=1.15.2
 wheel>=0.29.0
