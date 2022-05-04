@@ -33,7 +33,7 @@ def _setuprednoise(pulsar, components=10):
         redf[2 * i] = redf[2 * i + 1] = (i + 1) / T
 
     # include the normalization of the power-law prior in the Fourier matrices
-    norm = year ** 2 / (12 * math.pi ** 2 * T)
+    norm = year**2 / (12 * math.pi**2 * T)
     redF = math.sqrt(norm) * redF
 
     return redf, redF
@@ -119,7 +119,7 @@ def loglike(
     if Ared:
         redf, F = _setuprednoise(pulsar, redcomponents)
         F = mask(F)
-        phi = Ared ** 2 * redf ** (-gammared)
+        phi = Ared**2 * redf ** (-gammared)
 
     if jitter:
         # quantize at 1 second; U plays the role of redF
@@ -219,13 +219,13 @@ def map_invposnormal(x0, sigma):
 # correct sini sampling
 # full mirror mapping is y = -1.0 + 2.0*x, return math.sqrt(1.0 - y**2)
 def map_cosi2sini(sini_min, sini_max):
-    y0, y1 = math.sqrt(1.0 - sini_max ** 2), math.sqrt(1.0 - sini_min ** 2)
+    y0, y1 = math.sqrt(1.0 - sini_max**2), math.sqrt(1.0 - sini_min**2)
 
     def map(x):
         if not (0 <= x <= 1.0):
             raise ValueError
         y = y0 + x * (y1 - y0)
-        return math.sqrt(1.0 - y ** 2)
+        return math.sqrt(1.0 - y**2)
 
     return map
 
@@ -235,7 +235,7 @@ def map_cosi2sini_mirror():
         if not (0 <= x <= 1.0):
             raise ValueError
         y = -1.0 + 2.0 * x
-        return math.sqrt(1.0 - y ** 2)
+        return math.sqrt(1.0 - y**2)
 
     return map
 
