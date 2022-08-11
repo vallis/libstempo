@@ -6,7 +6,7 @@
 [![libstempo CI tests](https://github.com/vallis/libstempo/actions/workflows/ci_tests.yml/badge.svg)](https://github.com/vallis/libstempo/actions/workflows/ci_tests.yml)
 
 
-[![Python Versions](https://img.shields.io/badge/python-3.6%2C%203.7%2C%203.8%2C%203.9-blue.svg)]()
+[![Python Versions](https://img.shields.io/badge/python-3.7%2C%203.8%2C%203.9%2C%203.10-blue.svg)]()
 [![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://github.com/vallis/libstempo/blob/master/LICENSE)
 
 `libstempo` is a Python wrapper around the [tempo2](https://bitbucket.org/psrsoft/tempo2/src/master/) pulsar timing package.

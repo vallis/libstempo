@@ -83,10 +83,10 @@ setup(
         "Operating System :: MacOS",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
     packages=["libstempo"],
     package_dir={"libstempo": "libstempo"},
@@ -103,7 +103,7 @@ setup(
     setup_requires=["cython>=0.22", "numpy"],
     install_requires=["numpy>=1.15.0", "scipy>=1.2.0", "matplotlib>=3.3.2", "ephem>=3.7.7.1"],
     extras_require={"astropy": ["astropy>=4.1"]},
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     ext_modules=cythonize(
         Extension(
             "libstempo.libstempo",
