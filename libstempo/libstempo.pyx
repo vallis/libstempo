@@ -44,10 +44,7 @@ try:
     from astropy.units import Quantity
     from astropy.time import Time
     import astropy.constants
-    try:
-        import astropy.erfa as erfa
-    except ImportError:
-        import astropy._erfa as erfa
+    import erfa
 
     # missing several parameters; units are discussed in tempo2/initialize.C
 
