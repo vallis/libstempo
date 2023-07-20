@@ -25,7 +25,7 @@ exclude = '''
 requires = [
     "setuptools>=40.8.0",
     "wheel", # ephem package likes to have wheel installed
-    "Cython>=0.22",
+    "Cython>=0.22, <3.0",
     "oldest-supported-numpy",
 ]
 build-backend = "setuptools.build_meta"
