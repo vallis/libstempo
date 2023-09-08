@@ -627,30 +627,29 @@ cdef class tempopulsar:
                    dofit=False, maxobs=None, units=False, ephem=None, t2cmethod=None,
                    toas=None, toaerrs=None, observatory=None, obsfreq=1400)"""
 
-    cpdef public object parfile
-    cpdef public object timfile
+    cdef public object parfile
+    cdef public object timfile
 
-    cpdef public object units
+    cdef public object units
 
     cdef int npsr           # number of pulsars
     cdef pulsar *psr        # array of pulsar structures
 
-    cpdef object pardict    # dictionary of parameter proxies
+    cdef object pardict    # dictionary of parameter proxies
 
-    cpdef int nobs_         # number of observations
+    cdef int nobs_         # number of observations
 
-    cpdef object flagnames_ # a list of all flags that have values
-    cpdef object flags_     # a dictionary of numpy arrays with flag values
+    cdef object flagnames_ # a list of all flags that have values
+    cdef object flags_     # a dictionary of numpy arrays with flag values
 
-    cpdef public object noisemodel
+    cdef public object noisemodel
 
-    cpdef object __input_toas  # input TOAs
-    cpdef object __input_toaerrs  # input TOA errors (us)
-    cpdef object __input_observatory  # input observatories
-    cpdef object __input_obsfreq   # input observation frequencies
+    cdef object __input_toas  # input TOAs
+    cdef object __input_toaerrs  # input TOA errors (us)
+    cdef object __input_observatory  # input observatories
+    cdef object __input_obsfreq   # input observation frequencies
 
-    # TO DO: is cpdef required here?
-    cpdef jumpval, jumperr
+    cdef jumpval, jumperr
 
     def __cinit__(self, parfile, timfile=None, warnings=False,
                   fixprefiterrors=True, dofit=False, maxobs=None,
