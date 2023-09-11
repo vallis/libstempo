@@ -140,9 +140,16 @@ def fakepulsar(parfile, obstimes, toaerr, freq=1440.0, observatory="AXIS", flags
 
     timfile = outfile.name
     outfile.close()
+    # maxobs controls how many toas a tempo2 pulsar can store, here we make sure its large enough
+    maxobs = None
+    # 20000 is the tempo2 default for maxobs
+    tempo2_MAXOBS_VAL = 20000
+    if len(obstimes) >= tempo2_MAXOBS_VAL:
+        # if our number of toas is larger, then we need to increase maxobs
+        # the +3 is there because tempo2 readTim needs obstimes to be 2 smaller than maxobs
+        maxobs = len(obstimes) + 3
 
-    pulsar = libstempo.tempopulsar(parfile, timfile, dofit=False)
-
+    pulsar = libstempo.tempopulsar(parfile, timfile, maxobs=maxobs, dofit=False)
     for i in range(iters):
         pulsar.stoas[:] -= pulsar.residuals() / 86400.0
         pulsar.formbats()
