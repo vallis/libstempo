@@ -100,7 +100,7 @@ setup(
         "libstempo.spharmORFbasis",
         "libstempo.eccUtils",
     ],
-    setup_requires=["cython>=0.22", "numpy"],
+    setup_requires=["cython>=0.22, <3.0", "numpy"],
     install_requires=["numpy>=1.15.0", "scipy>=1.2.0", "matplotlib>=3.3.2", "ephem>=3.7.7.1"],
     extras_require={"astropy": ["astropy>=4.1"]},
     python_requires=">=3.7",
