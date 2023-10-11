@@ -1,7 +1,7 @@
 #cython: language_level=3
 
 import os, sys, math, re, time
-from distutils.version import StrictVersion
+from packaging import version
 
 import collections
 
@@ -617,7 +617,7 @@ def parse_tempo2version(s):
         return string(s).split()[1]
 
 def tempo2version():
-    return StrictVersion(parse_tempo2version(TEMPO2_VERSION))
+    return version.parse(parse_tempo2version(TEMPO2_VERSION))
 
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
@@ -682,7 +682,7 @@ cdef class tempopulsar:
 
         # tim rewriting is not needed with tempo2/readTimfile.C >= 1.22 (date: 2014/06/12 02:25:54),
         # which follows relative paths; closest tempo2.h version is 1.90 (date: 2014/06/24 20:03:34)
-        if tempo2version() >= StrictVersion("1.90"):
+        if tempo2version() >= version.parse("1.90"):
             self._readfiles(parfile,timfile)
         else:
             timfile = rewritetim(timfile)
