@@ -796,8 +796,8 @@ def createGWB(
     Npulsars = len(psr)
 
     # gw start and end times for entire data set
-    start = N.min([p.toas().min() * 86400 for p in psr]) - 86400
-    stop = N.max([p.toas().max() * 86400 for p in psr]) + 86400
+    start = float(N.min([p.toas().min() * 86400 for p in psr]) - 86400)
+    stop = float(N.max([p.toas().max() * 86400 for p in psr]) + 86400)
 
     # duration of the signal
     dur = stop - start
@@ -895,7 +895,7 @@ def createGWB(
     for ll in range(Npulsars):
         Res[ll, :] = Res_t[ll, 10 : (npts + 10)]
         f = interp.interp1d(ut, Res[ll, :], kind="linear")
-        res_gw.append(f(psr[ll].toas() * 86400))
+        res_gw.append(f(psr[ll].toas().astype(N.float) * 86400))
 
     # return res_gw
     ct = 0
