@@ -126,6 +126,7 @@ cdef extern from "tempo2.h":
     enum: param_LAST
     enum: param_ZERO
     enum: param_JUMP
+    enum: param_FDJUMP
     enum: MAX_T2EFAC
     enum: MAX_T2EQUAD
     enum: MAX_TNEF
@@ -216,7 +217,9 @@ cdef extern from "tempo2.h":
         int noWarnings
         double fitChisq
         int nJumps
+        char fjumpID[16]
         double jumpVal[MAX_JUMPS]
+        # char jumpSAT[MAX_JUMPS]
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
@@ -234,6 +237,15 @@ cdef extern from "tempo2.h":
         double rmsPost
         char clock[16]
         FitInfo fitinfo
+        
+        # new parameters for fdjumps
+        int nfdJumps
+        char ffdjumpID[16]
+        double fdjumpVal[MAX_JUMPS]
+        int fdjumpIdx[MAX_JUMPS]
+        int fitfdJump[MAX_JUMPS]
+        double fdjumpValErr[MAX_JUMPS]
+        char fdjump_log
 
         # noise parameters follow
 
@@ -324,6 +336,9 @@ cdef extern from "t2fit-stub.h":
 
     double t2FitFunc_zero(pulsar *psr,int ipsr,double x,int ipos,param_label label,int k)
     void t2UpdateFunc_zero(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
+    
+    double t2FitFunc_fdjump(pulsar *psr,int ipsr,double x,int ipos,param_label label,int k)
+    void t2UpdateFunc_fdjump(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
 
     void t2fit_fillOneParameterFitInfo(pulsar* psr,param_label fit_param,const int k,FitInfo& OUT)
 
@@ -353,6 +368,7 @@ cdef class tempopar:
     cdef public int subct
 
     cdef int _isjump
+    cdef int _isfdjump
     cdef void *_val
     cdef void *_err
     cdef int *_fitFlag
@@ -369,7 +385,7 @@ cdef class tempopar:
 
     property val:
         def __get__(self):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 return self._unitify(get_longdouble_as_scalar((<long double*>self._val)[0]))
             else:
                 return self._unitify(float((<double*>self._val)[0]))
@@ -383,7 +399,7 @@ cdef class tempopar:
             elif self.unit and isinstance(value,Quantity):
                 value = value.to(self.unit).value
 
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 if not self._paramSet[0]:
                     self._paramSet[0] = 1
 
@@ -393,7 +409,7 @@ cdef class tempopar:
 
     property err:
         def __get__(self):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 return self._unitify(get_longdouble_as_scalar((<long double*>self._err)[0]))
             else:
                 return self._unitify(float((<double*>self._err)[0]))
@@ -402,7 +418,7 @@ cdef class tempopar:
             if self.unit and isinstance(value,Quantity):
                 value = value.to(self.unit).value
 
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 set_longdouble(<long double*>self._err,value)
             else:
                 (<double*>self._err)[0] = value
@@ -413,8 +429,9 @@ cdef class tempopar:
 
         def __set__(self,value):
             if value:
-                if not self._isjump and not self._paramSet[0]:
-                    self._paramSet[0] = 1
+                if not self._isjump and not self._isfdjump:
+                    if not self._paramSet[0]:
+                        self._paramSet[0] = 1
 
                 self._fitFlag[0] = 1
             else:
@@ -423,13 +440,13 @@ cdef class tempopar:
     # note that paramSet is not always respected in tempo2
     property set:
         def __get__(self):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 return True if self._paramSet[0] else False
             else:
                 return True
 
         def __set__(self,value):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 if value:
                     self._paramSet[0] = 1
                 else:
@@ -440,6 +457,10 @@ cdef class tempopar:
     property isjump:
         def __get__(self):
             return True if self._isjump else False
+
+    property isfdjump:
+        def __get__(self):
+            return True if self._isfdjump else False
 
     def __str__(self):
         if self.set:
@@ -472,6 +493,7 @@ cdef create_tempopar(parameter par,int ct,int subct,int eclCoord,object units):
         newpar.timescale = None
 
     newpar._isjump = 0
+    newpar._isfdjump = 0
 
     newpar._val = &par.val[subct]
     newpar._err = &par.err[subct]
@@ -498,6 +520,7 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
     newpar.name = 'JUMP{0}'.format(ct)
 
     newpar._isjump = 1
+    newpar._isfdjump = 0
 
     newpar._val = &psr.jumpVal[ct]
     newpar._err = &psr.jumpValErr[ct]
@@ -508,6 +531,30 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
 
     return newpar
 
+cdef create_tempofdjump(pulsar *psr,int ct,object units):
+    cdef tempopar newpar = tempopar.__new__(tempopar)
+
+    # TO DO: proper units
+    if units:
+        newpar.unit = u.dimensionless_unscaled
+        newpar.timescale = None
+    else:
+        newpar.unit = None
+        newpar.timescale = None
+
+    newpar.name = 'FDJUMP{0}'.format(ct)
+
+    newpar._isjump = 0
+    newpar._isfdjump = 1
+
+    newpar._val = &psr.fdjumpVal[ct]
+    newpar._err = &psr.fdjumpValErr[ct]
+    newpar._fitFlag = &psr.fitfdJump[ct]
+
+    newpar.ct = param_FDJUMP
+    newpar.subct = ct
+
+    return newpar
 
 # TODO: check if consistent with new API
 cdef class GWB:
@@ -848,6 +895,10 @@ cdef class tempopulsar:
 
         for ct in range(1,self.psr[0].nJumps+1):  # jump 1 in the array not used...
             newpar = create_tempojump(&self.psr[0],ct,self.units)
+            self.pardict[newpar.name] = newpar
+            
+        for ct in range(1,self.psr[0].nfdJumps+1):  # jump 1 in the array not used...
+            newpar = create_tempofdjump(&self.psr[0],ct,self.units)
             self.pardict[newpar.name] = newpar
 
         # the designmatrix plugin also adds extra parameters for sinusoidal whitening
@@ -1711,6 +1762,12 @@ cdef class tempopulsar:
                 fitinfo.paramCounters[fitinfo.nParams]   = self[par].subct
                 fitinfo.paramDerivs[fitinfo.nParams]     = t2FitFunc_jump
                 fitinfo.updateFunctions[fitinfo.nParams] = t2UpdateFunc_jump
+                fitinfo.nParams = fitinfo.nParams + 1
+            elif self[par].isfdjump:
+                fitinfo.paramIndex[fitinfo.nParams]      = param_FDJUMP
+                fitinfo.paramCounters[fitinfo.nParams]   = self[par].subct
+                fitinfo.paramDerivs[fitinfo.nParams]     = t2FitFunc_fdjump
+                fitinfo.updateFunctions[fitinfo.nParams] = t2UpdateFunc_fdjump
                 fitinfo.nParams = fitinfo.nParams + 1
             else:
                 t2fit_fillOneParameterFitInfo(&self.psr[0],self[par].ct,self[par].subct,fitinfo)
