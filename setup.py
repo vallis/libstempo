@@ -68,7 +68,7 @@ else:
 
 setup(
     name="libstempo",
-    version="2.4.6",  # remember to change it in __init__.py
+    version="2.4.7",  # remember to change it in __init__.py
     description="A Python wrapper for tempo2",
     author="Michele Vallisneri",
     author_email="vallis@vallis.org",
@@ -100,8 +100,8 @@ setup(
         "libstempo.spharmORFbasis",
         "libstempo.eccUtils",
     ],
-    setup_requires=["cython>=0.22", "numpy"],
-    install_requires=["numpy>=1.15.0", "scipy>=1.2.0", "matplotlib>=3.3.2", "ephem>=3.7.7.1"],
+    setup_requires=["cython>=0.22", "numpy<2.0"],
+    install_requires=["numpy>=1.15.0,<2.0", "scipy>=1.2.0", "matplotlib>=3.3.2", "ephem>=3.7.7.1"],
     extras_require={"astropy": ["astropy>=4.1"]},
     python_requires=">=3.7",
     ext_modules=cythonize(
