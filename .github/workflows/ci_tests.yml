@@ -33,7 +33,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         brew unlink gcc && brew link gcc
-        brew install automake
+        brew install automake libtool
         ./install_tempo2.sh
     - name: Install tempo2 on linux
       if: runner.os == 'Linux'
