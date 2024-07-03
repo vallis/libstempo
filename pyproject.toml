@@ -1,10 +1,20 @@
+# to create a new release, do the following:
+# install the build and twine packages
+# $ pip install build twine
+# create a git tag with the new version number, e.g.,
+# $ git tag -a v3.5.0 -m "Version 3.5.0"
+# build the source distribution
+# $ python -m build --sdist --outdir .
+# Upload to PyPI with:
+# $ twine upload --repository libstempo libstempo-*.tar.gz
+
 [build-system]
 requires = [
     "setuptools>=61",
     "setuptools_scm[toml]>=6.2",
     "wheel", # ephem package likes to have wheel installed
     "cython",
-    "numpy>=2.0.0rc1",
+    "numpy>=2.0.0",
 ]
 build-backend = "setuptools.build_meta"
 
@@ -33,25 +43,25 @@ dynamic = [
 
 requires-python = ">=3.9, <4"
 dependencies = [
-    "numpy>=1.15.0",
-    "scipy>=1.2.0",
-    "matplotlib>=3.3.2",
-    "ephem>=3.7.7.1",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "ephem",
 ]
 
 [project.optional-dependencies]
 astropy = [
-    "astropy>=4.1",
+    "astropy",
 ]
 dev = [
-    "black~=22.3.0",
-    "flake8~=3.7.7",
-    "pre-commit~=1.15.2",
-    "wheel>=0.29.0",
-    "coverage>=4.5.3",
-    "pytest>=4.0.0",
-    "pytest-cov>=2.7.0",
-    "jupyter>=1.0.0",
+    "black",
+    "flake8",
+    "pre-commit",
+    "wheel",
+    "coverage",
+    "pytest",
+    "pytest-cov",
+    "jupyter",
 ]
 
 [tool.setuptools]
