@@ -1,16 +1,82 @@
+[build-system]
+requires = [
+    "setuptools>=61",
+    "setuptools_scm[toml]>=6.2",
+    "wheel", # ephem package likes to have wheel installed
+    "cython",
+    "numpy>=2.0.0rc1",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "libstempo"
+description = "A Python wrapper for tempo2"
+authors = [{name = "Michele Vallisneri", email = "vallis@vallis.org"}]
+urls = { Homepage = "https://github.com/vallis/libstempo" }
+readme = "README.md"
+license = { text = "MIT" }
+classifiers=[
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dynamic = [
+    "version",
+]
+
+requires-python = ">=3.9, <4"
+dependencies = [
+    "numpy>=1.15.0",
+    "scipy>=1.2.0",
+    "matplotlib>=3.3.2",
+    "ephem>=3.7.7.1",
+]
+
+[project.optional-dependencies]
+astropy = [
+    "astropy>=4.1",
+]
+dev = [
+    "black~=22.3.0",
+    "flake8~=3.7.7",
+    "pre-commit~=1.15.2",
+    "wheel>=0.29.0",
+    "coverage>=4.5.3",
+    "pytest>=4.0.0",
+    "pytest-cov>=2.7.0",
+    "jupyter>=1.0.0",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+    "libstempo*",
+]
+
+[tool.setuptools_scm]
+write_to = "libstempo/_version.py"
+
 [tool.black]
 line-length = 120
-target_version = ['py38']
-include = '\.pyi?$'
-exclude = '''
-
+target_version = ['py39']
+include = "\\.pyi?$"
+exclude = """
 (
   /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
+      \\.eggs         # exclude a few common directories in the
+    | \\.git          # root of the project
+    | \\.hg
+    | \\.mypy_cache
+    | \\.tox
     | _build
     | buck-out
     | build
@@ -19,13 +85,4 @@ exclude = '''
     | .libstempo
   )/
 )
-'''
-
-[build-system]
-requires = [
-    "setuptools>=40.8.0",
-    "wheel", # ephem package likes to have wheel installed
-    "Cython>=0.22",
-    "oldest-supported-numpy",
-]
-build-backend = "setuptools.build_meta"
+"""

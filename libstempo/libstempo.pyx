@@ -4,30 +4,12 @@ import os, sys, math, re, time
 from packaging import version
 
 import collections
+from collections import OrderedDict
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    # this is for Python 2.6 compatibility, we may be able to drop it
-    from ordereddict import OrderedDict
+# what is the default encoding here?
+string = lambda s: s.decode()
+string_dtype = 'U'
 
-# Python 2/3 compatibility
-
-if sys.version_info[0] < 3:
-    from itertools import izip as zip
-
-    string = lambda s: s
-    string_dtype = 'S'
-else:
-    # what is the default encoding here?
-    string = lambda s: s.decode()
-    string_dtype = 'U'
-
-# get zip-as-iterator behavior in Python 2
-try:
-    import itertools.izip as zip
-except ImportError:
-    pass
 
 from libc cimport stdlib, stdio
 from libc.string cimport strncpy, memset

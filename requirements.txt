@@ -1,6 +1,0 @@
-Cython>=0.22
-numpy>=1.15.0 
-scipy>=1.2.0
-matplotlib>=3.3.2
-astropy>=4.2
-ephem>=3.7.7.1
