@@ -37,6 +37,8 @@ from cython cimport view
 import numpy
 cimport numpy
 
+numpy.import_array()
+
 import scipy.linalg
 
 try:
