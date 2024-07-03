@@ -10,6 +10,11 @@ DATA_PATH = t2.__path__[0] + "/data/"
 TMP_DIR = Path("test_output")
 TMP_DIR.mkdir(exist_ok=True)
 
+try:
+    NP_LONG_DOUBLE_TYPE = np.float128
+except AttributeError:
+    NP_LONG_DOUBLE_TYPE = np.double
+
 
 class TestDeterministicSignals(unittest.TestCase):
     @classmethod
@@ -29,7 +34,7 @@ class TestDeterministicSignals(unittest.TestCase):
         self.assertTrue(np.all(self.psr.stoas > 50000) and np.all(self.psr.stoas < 59000))
         self.assertTrue(np.all(self.psr.toaerrs > 0.01) and np.all(self.psr.toaerrs < 10))
         self.assertTrue(np.all(self.psr.freqs > 700) and np.all(self.psr.freqs < 4000))
-        self.assertEqual(self.psr.stoas[0].dtype, np.float128)
+        self.assertEqual(self.psr.stoas[0].dtype, NP_LONG_DOUBLE_TYPE)
 
     def test_toas(self):
         self.assertTrue(np.all(self.psr.toas() != self.psr.stoas))

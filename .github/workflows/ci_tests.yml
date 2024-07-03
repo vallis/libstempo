@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ['3.7', '3.8', '3.9', '3.10']
+        python-version: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
     - name: Checkout repository
@@ -33,7 +33,7 @@ jobs:
       if: runner.os == 'macOS'
       run: |
         brew unlink gcc && brew link gcc
-        brew install automake
+        brew install automake libtool
         ./install_tempo2.sh
     - name: Install tempo2 on linux
       if: runner.os == 'Linux'
@@ -60,7 +60,7 @@ jobs:
     - name: Set up Python 
       uses: actions/setup-python@v2
       with:
-        python-version: '3.7'
+        python-version: '3.10'
     - name: Install tempo2 on mac
       if: runner.os == 'macOS'
       run: |
