@@ -81,8 +81,8 @@ write_to = "libstempo/_version.py"
 [tool.black]
 line-length = 120
 target_version = ['py39']
-include = "\\.pyi?$"
-exclude = """
+include = '\\.pyi?$'
+exclude = '''
 (
   /(
       \\.eggs         # exclude a few common directories in the
@@ -96,6 +96,7 @@ exclude = """
     | dist
     | docs
     | .libstempo
+    | libstempo/_version\.py
   )/
 )
-"""
+'''
