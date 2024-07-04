@@ -120,7 +120,7 @@ def plothist(
 
     for i in range(p):
         # figure out how big the multiplot needs to be
-        if type(append) == int:  # need this since isinstance(False,int) == True
+        if type(append) is int:  # need this since isinstance(False,int) == True
             q = append
         elif isinstance(append, (list, tuple)):
             q = len(append)
