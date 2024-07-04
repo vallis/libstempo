@@ -63,6 +63,12 @@ from functools import wraps
 
 from . import utils
 
+# set long double format for ARM64 compatibility
+try:
+    NP_LONG_DOUBLE_FORMAT = numpy.float128
+except AttributeError:
+    NP_LONG_DOUBLE_FORMAT = numpy.double
+
 # return numpy array as astropy table with unit
 def dimensionfy(unit):
     def dimensionfy_decorator(func):
@@ -884,12 +890,12 @@ cdef class tempopulsar:
         toas = self.__input_toas
 
         if toas is not None:
-            if isinstance(toas, (list, numpy.ndarray, tuple, float, numpy.float128)):
-                toamjd = numpy.atleast_1d(toas).astype(numpy.float128)
+            if isinstance(toas, (list, numpy.ndarray, tuple, float, NP_LONG_DOUBLE_FORMAT)):
+                toamjd = numpy.atleast_1d(toas).astype(NP_LONG_DOUBLE_FORMAT)
             else:
                 # check if using an astropy time object
                 try:
-                    toamjd = numpy.atleast_1d(toas.mjd).astype(numpy.float128)  # make sure in MJD
+                    toamjd = numpy.atleast_1d(toas.mjd).astype(NP>_LONG_DOUBLE_FORMAT)  # make sure in MJD
                 except Exception as e:
                     raise TypeError("Input TOAs are not of an allowed type: {}".format(e))
 
@@ -939,7 +945,7 @@ cdef class tempopulsar:
         npjump = numpy.asarray(_jump)
         npfdjump = numpy.asarray(_fdjump)
 
-        days = numpy.floor(toas).astype(numpy.float128)
+        days = numpy.floor(toas).astype(NP_LONG_DOUBLE_FORMAT)
         npsatday[:] = days
         npsatsec[:] = toas - days
 
