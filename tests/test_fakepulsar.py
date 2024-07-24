@@ -13,11 +13,16 @@ DATA_PATH = t2.__path__[0] + "/data/"
 TMP_DIR = Path("test_fake_output")
 TMP_DIR.mkdir(exist_ok=True)
 
+try:
+    NP_LONG_DOUBLE_TYPE = np.float128
+except AttributeError:
+    NP_LONG_DOUBLE_TYPE = np.double
+
 
 class TestFakePulsar(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.obstimes = np.arange(53000, 54800, 10, dtype=np.float128)
+        cls.obstimes = np.arange(53000, 54800, 10, dtype=NP_LONG_DOUBLE_TYPE)
         cls.toaerr = 1e-3
         cls.freq = 1440.0
         cls.observatory = "ao"
@@ -133,7 +138,7 @@ class TestFakePulsar(unittest.TestCase):
         self.assertEqual(len(self.obstimes), psr.nobs)
         self.assertTrue(np.all(self.obstimes == self.fakepsr.stoas))
         self.assertTrue(np.all(psr.stoas == self.fakepsr.stoas))
-        self.assertEqual(psr.stoas[0].dtype, np.float128)
+        self.assertEqual(psr.stoas[0].dtype, NP_LONG_DOUBLE_TYPE)
 
     def test_single_values(self):
         """
@@ -151,7 +156,7 @@ class TestFakePulsar(unittest.TestCase):
         self.assertEqual(psr.nobs, 1)
         self.assertEqual(len(psr.stoas), 1)
         self.assertTrue(np.all(self.fakepsr.stoas[0] == psr.stoas[0]))
-        self.assertEqual(psr.stoas[0].dtype, np.float128)
+        self.assertEqual(psr.stoas[0].dtype, NP_LONG_DOUBLE_TYPE)
 
     def test_toa_errs(self):
         """
