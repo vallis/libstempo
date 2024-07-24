@@ -109,10 +109,12 @@ cdef extern from "GWsim-stub.h":
 
 cdef extern from "tempo2.h":
     enum: MAX_PSR_VAL
+    enum: NE_SW_DEFAULT
     enum: MAX_FILELEN
     enum: MAX_OBSN_VAL
     enum: MAX_PARAMS
     enum: MAX_JUMPS
+    enum: MAX_IFUNC
     enum: MAX_FLAGS
     enum: MAX_FLAG_LEN
     enum: MAX_FIT
@@ -123,6 +125,9 @@ cdef extern from "tempo2.h":
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
+    enum: param_ne_sw
+    enum: param_ne_sw_sin
+    enum: param_ne_sw_ifunc
     enum: param_LAST
     enum: param_ZERO
     enum: param_JUMP
@@ -234,6 +239,12 @@ cdef extern from "tempo2.h":
         double rmsPost
         char clock[16]
         FitInfo fitinfo
+        
+        double ne_sw
+        double ne_sw_ifuncT[MAX_IFUNC]
+        double ne_sw_ifuncV[MAX_IFUNC]
+        double ne_sw_ifuncE[MAX_IFUNC]
+        int ne_sw_ifuncN
 
         # noise parameters follow
 
