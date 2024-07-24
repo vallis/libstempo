@@ -1,5 +1,3 @@
-__version__ = "2.4.6"
-
 import os
 from ._find_tempo2 import find_tempo2_runtime
 
@@ -14,3 +12,8 @@ if not TEMPO2_RUNTIME:
 
 
 from libstempo.libstempo import *  # noqa F401,F402,F403
+
+try:
+    from ._version import version as __version__
+except ModuleNotFoundError:
+    __version__ = ""
