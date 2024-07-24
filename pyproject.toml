@@ -1,31 +1,124 @@
+# to create a new release, do the following:
+# install the build and twine packages
+# $ pip install build twine
+# create a git tag with the new version number, e.g.,
+# $ git tag -a v3.5.0 -m "Version 3.5.0"
+# build the source distribution
+# $ python -m build --sdist --outdir .
+# Upload to PyPI with:
+# $ twine upload --repository libstempo libstempo-*.tar.gz
+
+[build-system]
+requires = [
+    "setuptools>=61",
+    "setuptools_scm[toml]>=6.2",
+    "wheel", # ephem package likes to have wheel installed
+    "cython",
+    'numpy>=2.0.0; python_version > "3.8"',
+    'numpy<2.0; python_version == "3.8"',
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "libstempo"
+description = "A Python wrapper for tempo2"
+authors = [{name = "Michele Vallisneri", email = "vallis@vallis.org"}]
+urls = { Homepage = "https://github.com/vallis/libstempo" }
+readme = "README.md"
+license = { text = "MIT" }
+classifiers=[
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dynamic = [
+    "version",
+]
+
+requires-python = ">=3.8, <4"
+dependencies = [
+    'numpy<2.0; python_version == "3.8"',
+    'numpy; python_version > "3.8"',
+    "scipy",
+    "matplotlib",
+    "ephem",
+]
+
+[project.optional-dependencies]
+astropy = [
+    "astropy",
+]
+dev = [
+    "black",
+    "flake8",
+    "Flake8-pyproject",
+    "pre-commit",
+    "wheel",
+    "coverage",
+    "pytest",
+    "pytest-cov",
+    "jupyter",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = [
+    "libstempo*",
+]
+
+[tool.setuptools_scm]
+write_to = "libstempo/_version.py"
+
 [tool.black]
 line-length = 120
-target_version = ['py38']
-include = '\.pyi?$'
+target_version = ['py39']
+include = '\\.pyi?$'
 exclude = '''
-
 (
   /(
-      \.eggs         # exclude a few common directories in the
-    | \.git          # root of the project
-    | \.hg
-    | \.mypy_cache
-    | \.tox
+      \\.eggs         # exclude a few common directories in the
+    | \\.git          # root of the project
+    | \\.hg
+    | \\.mypy_cache
+    | \\.tox
     | _build
     | buck-out
     | build
     | dist
     | docs
     | .libstempo
+    | libstempo/_version\.py
   )/
 )
 '''
 
-[build-system]
-requires = [
-    "setuptools>=40.8.0",
-    "wheel", # ephem package likes to have wheel installed
-    "Cython>=0.22",
-    "oldest-supported-numpy",
+[tool.flake8]
+max-line-length = 120
+max-complexity = 45
+ignore = [
+    "E203",
+    "W503",      # line break before binary operator; conflicts with black
+    "E722",      # bare except ok
+    "E731",      # lambda expressions ok
+    "E741",      # undescriptive variable ok
 ]
-build-backend = "setuptools.build_meta"
+exclude = [
+    ".git",
+    ".tox",
+    "__pycache__",
+    "build",
+    "dist",
+    "docs",
+    ".libstempo",
+]

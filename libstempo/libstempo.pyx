@@ -4,30 +4,12 @@ import os, sys, math, re, time
 from packaging import version
 
 import collections
+from collections import OrderedDict
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    # this is for Python 2.6 compatibility, we may be able to drop it
-    from ordereddict import OrderedDict
+# what is the default encoding here?
+string = lambda s: s.decode()
+string_dtype = 'U'
 
-# Python 2/3 compatibility
-
-if sys.version_info[0] < 3:
-    from itertools import izip as zip
-
-    string = lambda s: s
-    string_dtype = 'S'
-else:
-    # what is the default encoding here?
-    string = lambda s: s.decode()
-    string_dtype = 'U'
-
-# get zip-as-iterator behavior in Python 2
-try:
-    import itertools.izip as zip
-except ImportError:
-    pass
 
 from libc cimport stdlib, stdio
 from libc.string cimport strncpy, memset
@@ -80,6 +62,12 @@ except:
 from functools import wraps
 
 from . import utils
+
+# set long double format for ARM64 compatibility
+try:
+    NP_LONG_DOUBLE_FORMAT = numpy.float128
+except AttributeError:
+    NP_LONG_DOUBLE_FORMAT = numpy.double
 
 # return numpy array as astropy table with unit
 def dimensionfy(unit):
@@ -902,12 +890,12 @@ cdef class tempopulsar:
         toas = self.__input_toas
 
         if toas is not None:
-            if isinstance(toas, (list, numpy.ndarray, tuple, float, numpy.float128)):
-                toamjd = numpy.atleast_1d(toas).astype(numpy.float128)
+            if isinstance(toas, (list, numpy.ndarray, tuple, float, NP_LONG_DOUBLE_FORMAT)):
+                toamjd = numpy.atleast_1d(toas).astype(NP_LONG_DOUBLE_FORMAT)
             else:
                 # check if using an astropy time object
                 try:
-                    toamjd = numpy.atleast_1d(toas.mjd).astype(numpy.float128)  # make sure in MJD
+                    toamjd = numpy.atleast_1d(toas.mjd).astype(NP_LONG_DOUBLE_FORMAT)  # make sure in MJD
                 except Exception as e:
                     raise TypeError("Input TOAs are not of an allowed type: {}".format(e))
 
@@ -957,7 +945,7 @@ cdef class tempopulsar:
         npjump = numpy.asarray(_jump)
         npfdjump = numpy.asarray(_fdjump)
 
-        days = numpy.floor(toas).astype(numpy.float128)
+        days = numpy.floor(toas).astype(NP_LONG_DOUBLE_FORMAT)
         npsatday[:] = days
         npsatsec[:] = toas - days
 

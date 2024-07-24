@@ -5,7 +5,6 @@ import warnings
 from pathlib import Path
 
 import numpy
-from Cython.Build import cythonize
 from setuptools import Extension, setup
 
 
@@ -66,54 +65,24 @@ if platform.system() == "Linux":
 else:
     linkArgs = []
 
-setup(
-    name="libstempo",
-    version="2.4.7",  # remember to change it in __init__.py
-    description="A Python wrapper for tempo2",
-    author="Michele Vallisneri",
-    author_email="vallis@vallis.org",
-    url="https://github.com/vallis/libstempo",
-    license="MIT",
-    long_description=open("README.md").read(),
-    long_description_content_type="text/markdown",
-    classifiers=[
-        "Intended Audience :: Developers",
-        "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: MacOS",
-        "Operating System :: POSIX :: Linux",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-    ],
-    packages=["libstempo"],
-    package_dir={"libstempo": "libstempo"},
-    package_data={"libstempo": ["data/*", "ecc_vs_nharm.txt"]},
-    py_modules=[
-        "libstempo.like",
-        "libstempo.multinest",
-        "libstempo.emcee",
-        "libstempo.plot",
-        "libstempo.toasim",
-        "libstempo.spharmORFbasis",
-        "libstempo.eccUtils",
-    ],
-    setup_requires=["cython>=0.22", "numpy<2.0"],
-    install_requires=["numpy>=1.15.0,<2.0", "scipy>=1.2.0", "matplotlib>=3.3.2", "ephem>=3.7.7.1"],
-    extras_require={"astropy": ["astropy>=4.1"]},
-    python_requires=">=3.7",
-    ext_modules=cythonize(
-        Extension(
-            "libstempo.libstempo",
-            ["libstempo/libstempo.pyx"],
-            language="c++",
-            include_dirs=[TEMPO2 + "/include", numpy.get_include()],
-            libraries=["tempo2", "tempo2pred"],
-            library_dirs=[TEMPO2 + "/lib"],
-            extra_compile_args=["-Wno-unused-function"],
-            extra_link_args=linkArgs,
-        )
+
+ext_modules = [
+    Extension(
+        "libstempo.libstempo",
+        ["libstempo/libstempo.pyx"],
+        language="c++",
+        include_dirs=[TEMPO2 + "/include", numpy.get_include()],
+        libraries=["tempo2", "tempo2pred"],
+        library_dirs=[TEMPO2 + "/lib"],
+        extra_compile_args=["-Wno-unused-function"],
+        extra_link_args=linkArgs,
     ),
+]
+
+# add language level = 3
+for e in ext_modules:
+    e.cython_directives = {"language_level": "3"}
+
+setup(
+    ext_modules=ext_modules,
 )
