@@ -521,7 +521,7 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
 
     return newpar
 
-cdef create_tempofdjump(pulsar *psr,int ct,object units):
+cdef create_tempofdjump(pulsar *psr,int ct,int fddmct,object units):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
     # TO DO: proper units
@@ -532,7 +532,10 @@ cdef create_tempofdjump(pulsar *psr,int ct,object units):
         newpar.unit = None
         newpar.timescale = None
 
-    newpar.name = 'FDJUMP{0}'.format(ct)
+    if psr.fdjumpIdx[ct] == -2:
+        newpar.name = 'FDJUMPDM{0}'.format(fddmct)
+    else:
+        newpar.name = 'FDJUMP{0}'.format(ct)
 
     newpar._isjump = 0
     newpar._isfdjump = 1
@@ -888,7 +891,9 @@ cdef class tempopulsar:
             self.pardict[newpar.name] = newpar
             
         for ct in range(1,self.psr[0].nfdJumps+1):  # jump 1 in the array not used...
-            newpar = create_tempofdjump(&self.psr[0],ct,self.units)
+            if self.psr[0].fdjumpIdx[ct] == -2:
+                fddmct += 1
+            newpar = create_tempofdjump(&self.psr[0],ct,fddmct,self.units)
             self.pardict[newpar.name] = newpar
 
         # the designmatrix plugin also adds extra parameters for sinusoidal whitening
