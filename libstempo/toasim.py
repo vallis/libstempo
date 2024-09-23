@@ -158,7 +158,7 @@ def make_ideal(psr):
     psr.fit()
 
 
-def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
+def add_efac(psr, efac=1.0, flagid=None, flags=None, return_vec=False, seed=None):
     """Add nominal TOA errors, multiplied by `efac` factor.
     Optionally take a pseudorandom-number-generator seed."""
 
@@ -183,8 +183,11 @@ def add_efac(psr, efac=1.0, flagid=None, flags=None, seed=None):
 
     psr.stoas[:] += efacvec * psr.toaerrs * (1e-6 / day) * N.random.randn(psr.nobs)
 
+    if return_vec:
+        return efacvec
 
-def add_equad(psr, equad, flagid=None, flags=None, seed=None):
+
+def add_equad(psr, equad, flagid=None, flags=None, return_vec=False, seed=None):
     """Add quadrature noise of rms `equad` [s].
     Optionally take a pseudorandom-number-generator seed."""
 
@@ -208,6 +211,9 @@ def add_equad(psr, equad, flagid=None, flags=None, seed=None):
                 equadvec[ind] = equad[ct]
 
     psr.stoas[:] += (equadvec / day) * N.random.randn(psr.nobs)
+
+    if return_vec:
+        return equadvec
 
 
 def quantize(times, dt=1):
@@ -263,7 +269,7 @@ def quantize_fast(times, flags=None, dt=1.0):
 # print N.sum((t - t2)**2), N.all(U == U2)
 
 
-def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, seed=None):
+def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, return_vec=False, seed=None):
     """Add correlated quadrature noise of rms `ecorr` [s],
     with coarse-graining time `coarsegrain` [days].
     Optionally take a pseudorandom-number-generator seed."""
@@ -293,6 +299,9 @@ def add_jitter(psr, ecorr, flagid=None, flags=None, coarsegrain=0.1, seed=None):
                 ecorrvec[ind] = ecorr[ct]
 
     psr.stoas[:] += (1 / day) * N.dot(U * ecorrvec, N.random.randn(U.shape[1]))
+
+    if return_vec:
+        return N.dot(U * ecorrvec, N.ones(U.shape[1]))
 
 
 def add_rednoise(psr, A, gamma, components=10, tspan=None, seed=None):
@@ -933,3 +942,54 @@ def computeORFMatrix(psr):
                 ORF[ll, kk] = 2.0
 
     return ORF
+
+
+def compute_epoch_ave(times, res, err, ecorr=None, dt=1.0, flags=None):
+    """Compute epoch averaged TOAs including uncertainty
+
+    :param times: TOAs in seconds
+    :param res: Residuals in seconds
+    :param err: Scaled (by EFAC and EQUAD) error bars in seconds
+    :param ecorr: (optional) ECORR value for each point in s^2 [default None]
+    :param dt: (optional) Time bins for averaging [default 1 s]
+
+    :returns: average TOAs, error bars, residuals in seconds
+    :returns: (optional) average flags
+
+    from PAL2 (Ellis & van Haasteren 2017)
+    https://doi.org/10.5281/zenodo.251456
+    """
+    isort = N.argsort(times)
+
+    bucket_ref = [times[isort[0]]]
+    bucket_ind = [[isort[0]]]
+
+    for i in isort[1:]:
+        if times[i] - bucket_ref[-1] < dt:
+            bucket_ind[-1].append(i)
+        else:
+            bucket_ref.append(times[i])
+            bucket_ind.append([i])
+
+    avetoas = N.array([N.mean(times[l]) for l in bucket_ind], "d")
+
+    if flags is not None:
+        aveflags = N.array([flags[l[0]] for l in bucket_ind])
+
+    aveerr = N.zeros(len(bucket_ind))
+    averes = N.zeros(len(bucket_ind))
+
+    for i, l in enumerate(bucket_ind):
+        M = N.ones(len(l))
+        C = N.diag(err[l] ** 2)
+        if ecorr is not None:
+            C += N.ones((len(l), len(l))) * ecorr[l[0]]
+
+        avr = 1 / N.dot(M, N.dot(N.linalg.inv(C), M))
+        aveerr[i] = N.sqrt(avr)
+        averes[i] = avr * N.dot(M, N.dot(N.linalg.inv(C), res[l]))
+
+    if flags is not None:
+        return avetoas, aveerr, averes, aveflags
+    else:
+        return avetoas, aveerr, averes
