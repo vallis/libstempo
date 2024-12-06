@@ -901,6 +901,7 @@ cdef class tempopulsar:
             newpar = create_tempojump(&self.psr[0],ct,self.units)
             self.pardict[newpar.name] = newpar
             
+        fddmct = 0
         for ct in range(1,self.psr[0].nfdJumps+1):  # jump 1 in the array not used...
             if self.psr[0].fdjumpIdx[ct] == -2:
                 fddmct += 1
