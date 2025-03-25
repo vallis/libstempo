@@ -1,33 +1,15 @@
 #cython: language_level=3
 
 import os, sys, math, re, time
-from distutils.version import StrictVersion
+from packaging import version
 
 import collections
+from collections import OrderedDict
 
-try:
-    from collections import OrderedDict
-except ImportError:
-    # this is for Python 2.6 compatibility, we may be able to drop it
-    from ordereddict import OrderedDict
+# what is the default encoding here?
+string = lambda s: s.decode()
+string_dtype = 'U'
 
-# Python 2/3 compatibility
-
-if sys.version_info[0] < 3:
-    from itertools import izip as zip
-
-    string = lambda s: s
-    string_dtype = 'S'
-else:
-    # what is the default encoding here?
-    string = lambda s: s.decode()
-    string_dtype = 'U'
-
-# get zip-as-iterator behavior in Python 2
-try:
-    import itertools.izip as zip
-except ImportError:
-    pass
 
 from libc cimport stdlib, stdio
 from libc.string cimport strncpy, memset
@@ -37,6 +19,8 @@ from cython cimport view
 import numpy
 cimport numpy
 
+numpy.import_array()
+
 import scipy.linalg
 
 try:
@@ -44,10 +28,7 @@ try:
     from astropy.units import Quantity
     from astropy.time import Time
     import astropy.constants
-    try:
-        import astropy.erfa as erfa
-    except ImportError:
-        import astropy._erfa as erfa
+    import erfa
 
     # missing several parameters; units are discussed in tempo2/initialize.C
 
@@ -82,6 +63,12 @@ from functools import wraps
 
 from . import utils
 
+# set long double format for ARM64 compatibility
+try:
+    NP_LONG_DOUBLE_FORMAT = numpy.float128
+except AttributeError:
+    NP_LONG_DOUBLE_FORMAT = numpy.double
+
 # return numpy array as astropy table with unit
 def dimensionfy(unit):
     def dimensionfy_decorator(func):
@@ -112,10 +99,12 @@ cdef extern from "GWsim-stub.h":
 
 cdef extern from "tempo2.h":
     enum: MAX_PSR_VAL
+    enum: NE_SW_DEFAULT
     enum: MAX_FILELEN
     enum: MAX_OBSN_VAL
     enum: MAX_PARAMS
     enum: MAX_JUMPS
+    enum: MAX_IFUNC
     enum: MAX_FLAGS
     enum: MAX_FLAG_LEN
     enum: MAX_FIT
@@ -126,9 +115,13 @@ cdef extern from "tempo2.h":
     enum: param_pepoch
     enum: param_raj
     enum: param_decj
+    enum: param_ne_sw
+    enum: param_ne_sw_sin
+    enum: param_ne_sw_ifunc
     enum: param_LAST
     enum: param_ZERO
     enum: param_JUMP
+    enum: param_FDJUMP
     enum: MAX_T2EFAC
     enum: MAX_T2EQUAD
     enum: MAX_TNEF
@@ -219,7 +212,9 @@ cdef extern from "tempo2.h":
         int noWarnings
         double fitChisq
         int nJumps
+        char fjumpID[16]
         double jumpVal[MAX_JUMPS]
+        # char jumpSAT[MAX_JUMPS]
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
         char *binaryModel
@@ -237,6 +232,21 @@ cdef extern from "tempo2.h":
         double rmsPost
         char clock[16]
         FitInfo fitinfo
+        
+        double ne_sw
+        double ne_sw_ifuncT[MAX_IFUNC]
+        double ne_sw_ifuncV[MAX_IFUNC]
+        double ne_sw_ifuncE[MAX_IFUNC]
+        int ne_sw_ifuncN
+
+        # new parameters for fdjumps
+        int nfdJumps
+        char ffdjumpID[16]
+        double fdjumpVal[MAX_JUMPS]
+        int fdjumpIdx[MAX_JUMPS]
+        int fitfdJump[MAX_JUMPS]
+        double fdjumpValErr[MAX_JUMPS]
+        char fdjump_log
 
         # noise parameters follow
 
@@ -327,6 +337,9 @@ cdef extern from "t2fit-stub.h":
 
     double t2FitFunc_zero(pulsar *psr,int ipsr,double x,int ipos,param_label label,int k)
     void t2UpdateFunc_zero(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
+    
+    double t2FitFunc_fdjump(pulsar *psr,int ipsr,double x,int ipos,param_label label,int k)
+    void t2UpdateFunc_fdjump(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
 
     void t2fit_fillOneParameterFitInfo(pulsar* psr,param_label fit_param,const int k,FitInfo& OUT)
 
@@ -356,6 +369,7 @@ cdef class tempopar:
     cdef public int subct
 
     cdef int _isjump
+    cdef int _isfdjump
     cdef void *_val
     cdef void *_err
     cdef int *_fitFlag
@@ -372,7 +386,7 @@ cdef class tempopar:
 
     property val:
         def __get__(self):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 return self._unitify(get_longdouble_as_scalar((<long double*>self._val)[0]))
             else:
                 return self._unitify(float((<double*>self._val)[0]))
@@ -386,7 +400,7 @@ cdef class tempopar:
             elif self.unit and isinstance(value,Quantity):
                 value = value.to(self.unit).value
 
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 if not self._paramSet[0]:
                     self._paramSet[0] = 1
 
@@ -396,7 +410,7 @@ cdef class tempopar:
 
     property err:
         def __get__(self):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 return self._unitify(get_longdouble_as_scalar((<long double*>self._err)[0]))
             else:
                 return self._unitify(float((<double*>self._err)[0]))
@@ -405,7 +419,7 @@ cdef class tempopar:
             if self.unit and isinstance(value,Quantity):
                 value = value.to(self.unit).value
 
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 set_longdouble(<long double*>self._err,value)
             else:
                 (<double*>self._err)[0] = value
@@ -416,8 +430,9 @@ cdef class tempopar:
 
         def __set__(self,value):
             if value:
-                if not self._isjump and not self._paramSet[0]:
-                    self._paramSet[0] = 1
+                if not self._isjump and not self._isfdjump:
+                    if not self._paramSet[0]:
+                        self._paramSet[0] = 1
 
                 self._fitFlag[0] = 1
             else:
@@ -426,13 +441,13 @@ cdef class tempopar:
     # note that paramSet is not always respected in tempo2
     property set:
         def __get__(self):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 return True if self._paramSet[0] else False
             else:
                 return True
 
         def __set__(self,value):
-            if not self._isjump:
+            if not self._isjump and not self._isfdjump:
                 if value:
                     self._paramSet[0] = 1
                 else:
@@ -443,6 +458,10 @@ cdef class tempopar:
     property isjump:
         def __get__(self):
             return True if self._isjump else False
+
+    property isfdjump:
+        def __get__(self):
+            return True if self._isfdjump else False
 
     def __str__(self):
         if self.set:
@@ -475,6 +494,7 @@ cdef create_tempopar(parameter par,int ct,int subct,int eclCoord,object units):
         newpar.timescale = None
 
     newpar._isjump = 0
+    newpar._isfdjump = 0
 
     newpar._val = &par.val[subct]
     newpar._err = &par.err[subct]
@@ -501,6 +521,7 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
     newpar.name = 'JUMP{0}'.format(ct)
 
     newpar._isjump = 1
+    newpar._isfdjump = 0
 
     newpar._val = &psr.jumpVal[ct]
     newpar._err = &psr.jumpValErr[ct]
@@ -511,6 +532,33 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
 
     return newpar
 
+cdef create_tempofdjump(pulsar *psr,int ct,int fddmct,object units):
+    cdef tempopar newpar = tempopar.__new__(tempopar)
+
+    # TO DO: proper units
+    if units:
+        newpar.unit = u.dimensionless_unscaled
+        newpar.timescale = None
+    else:
+        newpar.unit = None
+        newpar.timescale = None
+
+    if psr.fdjumpIdx[ct] == -2:
+        newpar.name = 'FDJUMPDM{0}'.format(fddmct)
+    else:
+        newpar.name = 'FDJUMP{0}'.format(ct)
+
+    newpar._isjump = 0
+    newpar._isfdjump = 1
+
+    newpar._val = &psr.fdjumpVal[ct]
+    newpar._err = &psr.fdjumpValErr[ct]
+    newpar._fitFlag = &psr.fitfdJump[ct]
+
+    newpar.ct = param_FDJUMP
+    newpar.subct = ct
+
+    return newpar
 
 # TODO: check if consistent with new API
 cdef class GWB:
@@ -617,7 +665,7 @@ def parse_tempo2version(s):
         return string(s).split()[1]
 
 def tempo2version():
-    return StrictVersion(parse_tempo2version(TEMPO2_VERSION))
+    return version.parse(parse_tempo2version(TEMPO2_VERSION))
 
 # this is a Cython extension class; the benefit is that it can hold C attributes,
 # but all attributes must be defined in the code
@@ -682,7 +730,7 @@ cdef class tempopulsar:
 
         # tim rewriting is not needed with tempo2/readTimfile.C >= 1.22 (date: 2014/06/12 02:25:54),
         # which follows relative paths; closest tempo2.h version is 1.90 (date: 2014/06/24 20:03:34)
-        if tempo2version() >= StrictVersion("1.90"):
+        if tempo2version() >= version.parse("1.90"):
             self._readfiles(parfile,timfile)
         else:
             timfile = rewritetim(timfile)
@@ -856,6 +904,13 @@ cdef class tempopulsar:
         for ct in range(1,self.psr[0].nJumps+1):  # jump 1 in the array not used...
             newpar = create_tempojump(&self.psr[0],ct,self.units)
             self.pardict[newpar.name] = newpar
+            
+        fddmct = 0
+        for ct in range(1,self.psr[0].nfdJumps+1):  # jump 1 in the array not used...
+            if self.psr[0].fdjumpIdx[ct] == -2:
+                fddmct += 1
+            newpar = create_tempofdjump(&self.psr[0],ct,fddmct,self.units)
+            self.pardict[newpar.name] = newpar
 
         # the designmatrix plugin also adds extra parameters for sinusoidal whitening
         # but they don't seem to be used in the EPTA analysis
@@ -907,12 +962,12 @@ cdef class tempopulsar:
         toas = self.__input_toas
 
         if toas is not None:
-            if isinstance(toas, (list, numpy.ndarray, tuple, float, numpy.float128)):
-                toamjd = numpy.atleast_1d(toas).astype(numpy.float128)
+            if isinstance(toas, (list, numpy.ndarray, tuple, float, NP_LONG_DOUBLE_FORMAT)):
+                toamjd = numpy.atleast_1d(toas).astype(NP_LONG_DOUBLE_FORMAT)
             else:
                 # check if using an astropy time object
                 try:
-                    toamjd = numpy.atleast_1d(toas.mjd).astype(numpy.float128)  # make sure in MJD
+                    toamjd = numpy.atleast_1d(toas.mjd).astype(NP_LONG_DOUBLE_FORMAT)  # make sure in MJD
                 except Exception as e:
                     raise TypeError("Input TOAs are not of an allowed type: {}".format(e))
 
@@ -962,7 +1017,7 @@ cdef class tempopulsar:
         npjump = numpy.asarray(_jump)
         npfdjump = numpy.asarray(_fdjump)
 
-        days = numpy.floor(toas).astype(numpy.float128)
+        days = numpy.floor(toas).astype(NP_LONG_DOUBLE_FORMAT)
         npsatday[:] = days
         npsatsec[:] = toas - days
 
@@ -1718,6 +1773,12 @@ cdef class tempopulsar:
                 fitinfo.paramCounters[fitinfo.nParams]   = self[par].subct
                 fitinfo.paramDerivs[fitinfo.nParams]     = t2FitFunc_jump
                 fitinfo.updateFunctions[fitinfo.nParams] = t2UpdateFunc_jump
+                fitinfo.nParams = fitinfo.nParams + 1
+            elif self[par].isfdjump:
+                fitinfo.paramIndex[fitinfo.nParams]      = param_FDJUMP
+                fitinfo.paramCounters[fitinfo.nParams]   = self[par].subct
+                fitinfo.paramDerivs[fitinfo.nParams]     = t2FitFunc_fdjump
+                fitinfo.updateFunctions[fitinfo.nParams] = t2UpdateFunc_fdjump
                 fitinfo.nParams = fitinfo.nParams + 1
             else:
                 t2fit_fillOneParameterFitInfo(&self.psr[0],self[par].ct,self[par].subct,fitinfo)

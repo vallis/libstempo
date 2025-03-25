@@ -63,7 +63,6 @@ def add_dipole_gwb(
     dipoledir=None,
     dipolemag=None,
 ):
-
     """Add a stochastic background from inspiraling binaries distributed
     according to a pure dipole distribution, using the tempo2
     code that underlies the GWdipolebkgrd plugin.
@@ -502,7 +501,6 @@ def add_cgw(
 
     # evolution
     if evolve:
-
         # calculate time dependent frequency at earth and pulsar
         omega = w0 * (1 - fac1 * toas) ** (-3 / 8)
         omega_p = w0 * (1 - fac1 * tp) ** (-3 / 8)
@@ -513,7 +511,6 @@ def add_cgw(
 
     # use approximation that frequency does not evlolve over observation time
     elif phase_approx:
-
         # frequencies
         omega = w0
         omega_p = w0 * (1 + fac1 * pd * (1 - cosMu)) ** (-3 / 8)
@@ -524,7 +521,6 @@ def add_cgw(
 
     # no evolution
     else:
-
         # monochromatic
         omega = w0
         omega_p = omega
@@ -681,7 +677,6 @@ def add_ecc_cgw(
 
     # pulsar term #####
     if psrTerm:
-
         # convert units
         pd *= eu.KPC2S  # convert from kpc to seconds
 
@@ -855,7 +850,6 @@ def createGWB(
 
     # strain amplitude
     if userSpec is None:
-
         f1yr = 1 / 3.16e7
         alpha = -0.5 * (gam - 3)
         hcf = Amp * (f / f1yr) ** (alpha)
@@ -864,7 +858,6 @@ def createGWB(
             hcf /= (1 + (f / f0) ** (power * si)) ** (1 / power)
 
     elif userSpec is not None:
-
         freqs = userSpec[:, 0]
         if len(userSpec[:, 0]) != len(freqs):
             raise ValueError("Number of supplied spectral points does not match number of frequencies!")
