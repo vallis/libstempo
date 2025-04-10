@@ -850,6 +850,8 @@ cdef class tempopulsar:
                                              flag=string(&self.psr[0].TNEFFlagID[i][1]),
                                              flagval=string(self.psr[0].TNEFFlagVal[i]))
 
+        self.psr[0].nTNEF = 0
+
         for i in range(self.psr[0].nTNEQ):
             name = 'equad_' + string(self.psr[0].TNEQFlagVal[i])
 
@@ -858,6 +860,8 @@ cdef class tempopulsar:
             self.noisemodel[name] = noisepar(val=value,
                                              flag=string(&self.psr[0].TNEQFlagID[i][1]),
                                              flagval=string(self.psr[0].TNEQFlagVal[i]))
+
+        self.psr[0].nTNEQ = 0
 
         for i in range(self.psr[0].nTNECORR):
             name = 'ecorr_' + string(self.psr[0].TNECORRFlagVal[i])
