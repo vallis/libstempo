@@ -20,7 +20,7 @@ tar zxvf 2021.07.1-correct.tar.gz
 cd psrsoft-tempo2-*
 
 # remove LT_LIB_DLLOAD from configure.ac
-sed -i '/LT_LIB_DLLOAD/d' configure.ac
+sed -i 's/LT_LIB_DLLOAD//d' configure.ac
 
 ./bootstrap
 ./configure --prefix=$prefix
