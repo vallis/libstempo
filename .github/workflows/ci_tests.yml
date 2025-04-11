@@ -83,7 +83,7 @@ jobs:
         venv-sdist/bin/python -m pip install --upgrade pip setuptools
         venv-sdist/bin/python -m pip install ../dist/libstempo*.tar.gz
         venv-sdist/bin/python -c "import libstempo;print(libstempo.__version__)"
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       with:
         name: dist
         path: dist/*
