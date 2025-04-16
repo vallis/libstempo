@@ -14,8 +14,8 @@ fi
 export TEMPO2=$prefix/share/tempo2
 mkdir -p $TEMPO2
 
-curl -O https://bitbucket.org/psrsoft/tempo2/get/2021.07.1-correct.tar.gz
-tar zxvf 2021.07.1-correct.tar.gz
+curl -O https://bitbucket.org/psrsoft/tempo2/get/2025.02.1.tar.gz
+tar zxvf 202502.1.tar.gz
 
 cd psrsoft-tempo2-*
 
@@ -33,5 +33,5 @@ cp -r T2runtime/* $TEMPO2
 cd ..
 
 rm -rf psrsoft-tempo2-*
-rm -rf 2021.07.1-correct.tar.gz
+rm -rf 2025.02.1.tar.gz
 echo "Set TEMPO2 environment variable to ${TEMPO2} to make things run more smoothly."
