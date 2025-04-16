@@ -15,7 +15,7 @@ export TEMPO2=$prefix/share/tempo2
 mkdir -p $TEMPO2
 
 curl -O https://bitbucket.org/psrsoft/tempo2/get/2025.02.1.tar.gz
-tar zxvf 202502.1.tar.gz
+tar zxvf 2025.02.1.tar.gz
 
 cd psrsoft-tempo2-*
 
