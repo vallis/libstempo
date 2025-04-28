@@ -21,6 +21,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+        tempo2-version: ['2021.07.1-correct', '2023.05.1', '2024.11.1', '2025.02.1']
 
     steps:
     - name: Checkout repository
@@ -34,11 +35,11 @@ jobs:
       run: |
         brew unlink gcc && brew link gcc
         brew install automake libtool
-        ./install_tempo2.sh
+        ./install_tempo2.sh -v ${{ matrix.tempo2-version }}
     - name: Install tempo2 on linux
       if: runner.os == 'Linux'
       run: |
-        ./install_tempo2.sh
+        ./install_tempo2.sh -v ${{ matrix.tempo2-version }}
     - name: Install dependencies and package
       run: |
         python -m pip install --upgrade pip
