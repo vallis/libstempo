@@ -2190,17 +2190,19 @@ cdef class tempopulsar:
 
         Save current par file (calls tempo2's `textOutput(...)`)."""
 
-        cdef char parFile[MAX_FILELEN]
+        #cdef char parFile[MAX_FILELEN]
 
         if not parfile:
             parfile = self.parfile
 
         parfile_bytes = parfile.encode()
+        cdef char *parFile = parfile_bytes
 
         if len(parfile_bytes) > MAX_FILELEN - 1:
             raise IOError("Parfile name {0} too long for tempo2!".format(parfile))
 
-        stdio.sprintf(parFile,"%s",<char *>parfile_bytes)
+        
+        #stdio.sprintf(parFile,"%s",<char *>parfile_bytes)
 
         # void textOutput(pulsar *psr,int npsr,
         #                 double globalParameter,  -- ?
@@ -2220,17 +2222,18 @@ cdef class tempopulsar:
 
         Save current par file (calls tempo2's `writeTim(...)`)."""
 
-        cdef char timFile[MAX_FILELEN]
+        #cdef char timFile[MAX_FILELEN]
 
         if not timfile:
             timfile = self.timfile
 
         timfile_bytes = timfile.encode()
+        cdef char *timFile = timfile_bytes
 
         if len(timfile_bytes) > MAX_FILELEN - 1:
             raise IOError("Timfile name {0} too long for tempo2!".format(timfile))
 
-        stdio.sprintf(timFile,"%s",<char *>timfile_bytes)
+        #stdio.sprintf(timFile,"%s",<char *>timfile_bytes)
 
         writeTim(timFile,&(self.psr[0]),'tempo2')
 
