@@ -29,14 +29,14 @@ done
 fi
 
 echo 'Will install in' $prefix
-echo 'Will attempt to install tempo2 version ' $tempo2version
+echo 'Will attempt to install tempo2 version' $tempo2version
 
 # make a destination directory for runtime files
 export TEMPO2=$prefix/share/tempo2
 mkdir -p $TEMPO2
 
-curl -O https://bitbucket.org/psrsoft/tempo2/get/${tempo2version}.tar.gz
-if [ $? -eq 0 ]; then
+dl=$(curl -Of https://bitbucket.org/psrsoft/tempo2/get/${tempo2version}.tar.gz || echo $?)
+if [ $dl -ne 0 ]; then
     echo 'Version '${tempo2version}' of Tempo2 does not exist. Please see, e.g., https://github.com/mattpitkin/tempo2/tags for a list of allowed version tags.'
     exit 1
 fi
