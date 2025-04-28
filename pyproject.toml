@@ -12,7 +12,7 @@
 requires = [
     "packaging>=24.2",
     'setuptools>=77; python_version > "3.8"',
-    'setuptools>=74; python_version == 3.8"',
+    'setuptools>=74; python_version == "3.8"',
     "setuptools_scm[toml]>=6.2",
     "wheel", # ephem package likes to have wheel installed
     "cython",
