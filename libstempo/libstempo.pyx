@@ -6,13 +6,23 @@ from packaging import version
 import collections
 from collections import OrderedDict
 
+
 # what is the default encoding here?
-string = lambda s: s.decode()
+def string(buf):
+    # take bytes up to the first '\0'
+    raw = bytes(buf).split(b'\0', 1)[0]
+    # try UTF-8, else fall back to Latin-1 (one-to-one byte→codepoint)
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return raw.decode('latin-1')
+
+
 string_dtype = 'U'
 
 
 from libc cimport stdlib, stdio
-from libc.string cimport strncpy, memset
+from libc.string cimport strcpy, strncpy, memset
 
 from cython cimport view
 
@@ -816,8 +826,14 @@ cdef class tempopulsar:
             if len(checkfile) > MAX_FILELEN - 1:
                 raise IOError("Filename {0} is too long for tempo2.".format(checkfile))
 
-        stdio.sprintf(parFile[0],"%s",<char *>parfile_bytes)
-        stdio.sprintf(timFile[0],"%s",<char *>timfile_bytes)
+        cdef const char *par_file_c_str = parfile_bytes
+        cdef const char *tim_file_c_str = timfile_bytes
+
+        strcpy(parFile[0], par_file_c_str)
+        strcpy(timFile[0], tim_file_c_str)
+
+        #stdio.sprintf(parFile[0],"%s",<char *>parfile_bytes)
+        #stdio.sprintf(timFile[0],"%s",<char *>timfile_bytes)
 
         readParfile(self.psr,parFile,timFile,self.npsr)   # load the parameters    (all pulsars)
 
@@ -956,9 +972,11 @@ cdef class tempopulsar:
 
     def _setstring(self,char* string,maxlen,value):
         value_bytes = value.encode()
+        cdef const char *value_c_str = value_bytes
 
-        if len(value_bytes) < maxlen:
-            stdio.sprintf(string,"%s",<char *>value_bytes)
+        if len(value_bytes) < maxlen - 1:
+            #stdio.sprintf(string,"%s",<char *>value_bytes)
+            strcpy(string, value_c_str)
         else:
             raise ValueError
 
@@ -1040,7 +1058,7 @@ cdef class tempopulsar:
         for i in range(self.psr[0].nobs):
             # make sure fname array is empty
             memset(<char *>&(self.psr[0].obsn[i].fname[0]), 0, MAX_FILELEN * sizeof(char))
-            strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE", 4 * sizeof(char))
+            strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE\0", 5 * sizeof(char))
 
         self._inputtoaerrs()
         self._inputobservatory()
@@ -1119,7 +1137,8 @@ cdef class tempopulsar:
 
             # set the observatories
             for i in range(self.psr[0].nobs):
-                strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obsv[i], 100 * sizeof(char))
+                obstr = obsv[i][:99] + "\0"  # append null character
+                strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obstr, len(obstr) * sizeof(char))
 
                 # set which corrections to apply (taken from TEMPO2 readTimfile.C)
                 if obsv[i][0] == "@" or obsv[i] == "bat":
@@ -1168,9 +1187,11 @@ cdef class tempopulsar:
         def __set__(self,value):
             # this is OK in both Python 2 and 3
             name_bytes = value.encode()
+            cdef const char *name_c_str = name_bytes
 
-            if len(name_bytes) < 100:
-                stdio.sprintf(self.psr[0].name,"%s",<char *>name_bytes)
+            if len(name_bytes) < 100 - 1:
+                strcpy(self.psr[0].name, name_c_str)
+                #stdio.sprintf(self.psr[0].name,"%s",<char *>name_bytes)
             else:
                 raise ValueError
 
@@ -1182,9 +1203,11 @@ cdef class tempopulsar:
 
         def __set__(self,value):
             model_bytes = value.encode()
+            cdef const char *model_c_str = model_bytes
 
-            if len(model_bytes) < 100:
-                stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>model_bytes)
+            if len(model_bytes) < 100 - 1:
+                strcpy(self.psr[0].binaryModel, model_c_str)
+                #stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>model_bytes)
             else:
                 raise ValueError
 
@@ -1197,12 +1220,15 @@ cdef class tempopulsar:
         def __set__(self,value):
             def seteph(filename,usecalceph=False):
                 model_bytes = filename.encode()
+                cdef const char *model_c_str = model_bytes
 
-                if len(model_bytes) < MAX_FILELEN:
-                    stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+                if len(model_bytes) < MAX_FILELEN - 1:
+                    strcpy(self.psr[0].JPL_EPHEMERIS, model_c_str)
+                    #stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
 
                     # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS for calceph.
-                    stdio.sprintf(self.psr[0].ephemeris,    "%s",<char *>model_bytes)
+                    strcpy(self.psr[0].ephemeris, model_c_str)
+                    #stdio.sprintf(self.psr[0].ephemeris,    "%s",<char *>model_bytes)
 
                     self.psr[0].useCalceph = int(usecalceph)
 
@@ -1244,9 +1270,11 @@ cdef class tempopulsar:
 
         def __set__(self,value):
             value_bytes = value.encode()
+            cdef const char *value_c_str = value_bytes
 
-            if len(value_bytes) < 16:
-                stdio.sprintf(self.psr[0].clock,"%s",<char *>value_bytes)
+            if len(value_bytes) < (16 - 1):
+                strcpy(self.psr[0].clock, value_c_str)
+                #stdio.sprintf(self.psr[0].clock,"%s",<char *>value_bytes)
             else:
                 raise ValueError("CLK name '{}' is too long.".format(value))
 
@@ -1704,7 +1732,8 @@ cdef class tempopulsar:
                         # set reference epoch
                         self["TZRMJD"].val = epoch
                     if site is not None:
-                        strncpy(<char *>&(self.psr[0].tzrsite[0]), str.encode(site), 100 * sizeof(char))
+                        sitestr = str.encode(site) + b"\0"  # append null character
+                        strncpy(<char *>&(self.psr[0].tzrsite[0]), sitestr, len(sitestr) * sizeof(char))
                     if freq is not None:
                         self["TZRFRQ"] = freq
                     self.psr[0].refphs = REFPHS_TZR
@@ -2196,12 +2225,11 @@ cdef class tempopulsar:
             parfile = self.parfile
 
         parfile_bytes = parfile.encode()
-        cdef char *parFile = parfile_bytes
-
+        
         if len(parfile_bytes) > MAX_FILELEN - 1:
             raise IOError("Parfile name {0} too long for tempo2!".format(parfile))
 
-        
+        cdef const char *parFile = parfile_bytes
         #stdio.sprintf(parFile,"%s",<char *>parfile_bytes)
 
         # void textOutput(pulsar *psr,int npsr,
@@ -2228,11 +2256,11 @@ cdef class tempopulsar:
             timfile = self.timfile
 
         timfile_bytes = timfile.encode()
-        cdef char *timFile = timfile_bytes
 
         if len(timfile_bytes) > MAX_FILELEN - 1:
             raise IOError("Timfile name {0} too long for tempo2!".format(timfile))
 
+        cdef const char *timFile = timfile_bytes
         #stdio.sprintf(timFile,"%s",<char *>timfile_bytes)
 
         writeTim(timFile,&(self.psr[0]),'tempo2')
