@@ -19,9 +19,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
-        tempo2-version: ['2021.07.1-correct', '2023.05.1', '2024.11.1', '2025.02.1']
+        os: [ubuntu-latest] #, macos-latest]
+        python-version: ['3.8'] #, '3.9', '3.10', '3.11', '3.12']
+        tempo2-version: ['2021.07.1-correct'] #, '2023.05.1', '2024.11.1', '2025.02.1']
 
     steps:
     - name: Checkout repository

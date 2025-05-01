@@ -8,14 +8,27 @@ from collections import OrderedDict
 
 
 # what is the default encoding here?
-def string(buf):
+#def string(buf):
     # take bytes up to the first '\0'
-    raw = bytes(buf).split(b'\0', 1)[0]
-    # try UTF-8, else fall back to Latin-1 (one-to-one byte→codepoint)
-    try:
-        return raw.decode('utf-8')
-    except UnicodeDecodeError:
-        return raw.decode('latin-1')
+#    raw = bytes(buf).split(b'\0', 1)[0]
+#    # try UTF-8, else fall back to Latin-1 (one-to-one byte→codepoint)
+#    try:
+#        return raw.decode('utf-8')
+#    except UnicodeDecodeError:
+#        return raw.decode('latin-1')
+
+cdef str string(s):
+    if type(s) is str:
+        # Fast path for most common case(s).
+        return <str>s
+    elif isinstance(s, str):
+        # We know from the fast path above that 's' can only be a subtype here.
+        # An evil cast to <str> might still work in some(!) cases,
+        # depending on what the further processing does.  To be safe,
+        # we can always create a copy instead.
+        return str(s)
+    else:
+        raise TypeError("Could not convert to str.")
 
 
 string_dtype = 'U'
