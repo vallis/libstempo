@@ -977,7 +977,7 @@ cdef class tempopulsar:
 
         if len(value_bytes) < maxlen - 1:
             vblen = sizeof(char) * (len(value_bytes) + 1)
-	    stdio.snprintf(string, vblen, "%s", value_c_str)
+            stdio.snprintf(string, vblen, "%s", value_c_str)
             #strcpy(string, value_c_str)
         else:
             raise ValueError
