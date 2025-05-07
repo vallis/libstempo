@@ -6,13 +6,21 @@ from packaging import version
 import collections
 from collections import OrderedDict
 
+
 # what is the default encoding here?
-string = lambda s: s.decode()
+def string(buf):
+    # take bytes up to the first '\0'
+    raw = bytes(buf).split(b'\0', 1)[0]
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return raw.decode('latin-1')
+
 string_dtype = 'U'
 
 
 from libc cimport stdlib, stdio
-from libc.string cimport strncpy, memset
+from libc.string cimport strcpy, strncpy, memset
 
 from cython cimport view
 
@@ -150,23 +158,21 @@ cdef extern from "tempo2.h":
         long double sat_day	   # Just the Day part
         long double sat_sec	   # Just the Sec part
         long double bat        # barycentric arrival time
-        long double bbat       # barycentric arrival time
         long double batCorr    #update from sat-> bat
+        long double bbat       # barycentric arrival time
         long double pet        # pulsar emission time
         int clockCorr          # = 1 for clock corrections to be applied, = 0 for BAT
         int delayCorr          # = 1 for time delay corrections to be applied, = 0 for BAT
         int deleted            # 1 if observation deleted, -1 if not in fit
         long double prefitResidual
         long double residual
-        double toaErr          # error on TOA (in us)
-        double origErr         # original error on TOA after reading tim file (in us)
-        double toaDMErr        # error on TOA due to DM (in us)
-        char **flagID          # ID of flags
-        char **flagVal         # Value of flags
-        int nFlags             # Number of flags set
         double freq            # frequency of observation (in MHz)
         double freqSSB         # frequency of observation in barycentric frame (in Hz)
-        char fname[MAX_FILELEN] # name of datafile giving TOA
+        double toaErr          # error on TOA (in us)
+        double toaDMErr        # error on TOA due to DM (in us)
+        double origErr         # original error on TOA after reading tim file (in us)
+        double phaseOffset     # Phase offset
+        char fname[MAX_FILELEN + 1] # name of datafile giving TOA
         char telID[100]        # telescope ID
         double sun_ssb[6]      # Sun wrt SSB
         double earth_ssb[6]    # Earth center wrt SSB
@@ -174,18 +180,21 @@ cdef extern from "tempo2.h":
         double observatory_earth[6]    # Obs wrt Earth center
         double psrPos[3]       # Unit vector to the pulsar position
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
-        long double torb       # Combined binary delay
-        long long pulseN       # Pulse number
-        long double roemer     # Roemer delay
         double shapiroDelaySun     # Shapiro delay caused by the Sun
-        double phaseOffset     # Phase offset
+        long double roemer     # Roemer delay
+        long double torb       # Combined binary delay
         long double phase      # the phase (cycles)
-        double efac            # Error multiplication factor
-        double equad           # Value to add in quadrature
+        long long pulseN       # Pulse number
+        char flagID[MAX_FLAGS][MAX_FLAG_LEN]          # ID of flags
+        char flagVal[MAX_FLAGS][MAX_FLAG_LEN]          # Value of flags
+        int nFlags             # Number of flags set
         int jump[MAX_FLAGS]    # Jump region
+        #double jumpScale[MAX_FLAGS]
         int obsNjump           # Number of jumps for this observation
         int fdjump[MAX_FLAGS]
         int obsNfdjump
+        double efac            # Error multiplication factor
+        double equad           # Value to add in quadrature
 
     ctypedef int param_label
 
@@ -204,40 +213,20 @@ cdef extern from "tempo2.h":
         double height_grs80     # GRS80 geodetic height
 
     ctypedef struct pulsar:
+        char name[100]
         parameter param[MAX_PARAMS]
-        observation *obsn
-        char *name
-        int nobs
-        int rescaleErrChisq
-        int noWarnings
-        double fitChisq
+        char binaryModel[100]
+
+        double posPulsar[3]     # 3-unitvector pointing at the pulsar
+        double ne_sw
+
         int nJumps
         char fjumpID[16]
         double jumpVal[MAX_JUMPS]
         # char jumpSAT[MAX_JUMPS]
         int fitJump[MAX_JUMPS]
         double jumpValErr[MAX_JUMPS]
-        char *binaryModel
-        int t2cMethod               # How to transform from terrestrial to celestial coords. Set in parfile with T2CMETHOD
-                                    # tempo2 supports T2C_IAU2000B (default) and T2C_TEMPO
-        char *JPL_EPHEMERIS
-        char *ephemeris
-        int useCalceph
-        int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
-        double posPulsar[3]     # 3-unitvector pointing at the pulsar
-        # long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
-        int phaseJumpID[MAX_JUMPS]         # ID of closest point to phase jump
-        int phaseJumpDir[MAX_JUMPS]        # Size and direction of phase jump
-        int nPhaseJump                     # Number of phase jumps
-        double rmsPost
-        char clock[16]
-        FitInfo fitinfo
-        
-        double ne_sw
-        double ne_sw_ifuncT[MAX_IFUNC]
-        double ne_sw_ifuncV[MAX_IFUNC]
-        double ne_sw_ifuncE[MAX_IFUNC]
-        int ne_sw_ifuncN
+        # char jumpScaled[MAX_JUMPS]
 
         # new parameters for fdjumps
         int nfdJumps
@@ -248,22 +237,42 @@ cdef extern from "tempo2.h":
         double fdjumpValErr[MAX_JUMPS]
         char fdjump_log
 
+        double fitChisq
+        int rescaleErrChisq
+
+        observation *obsn
+        int nobs
+        int t2cMethod               # How to transform from terrestrial to celestial coords. Set in parfile with T2CMETHOD
+                                    # tempo2 supports T2C_IAU2000B (default) and T2C_TEMPO
+        int noWarnings
+
+        char JPL_EPHEMERIS[MAX_FILELEN]
+        char ephemeris[MAX_FILELEN]
+        int useCalceph
+        char tzrsite[100]
+        int eclCoord            # = 1 for ecliptic coords otherwise celestial coords
+        # long double phaseJump[MAX_JUMPS] # Time of phase jump (Deprecated. WHY?)
+        int phaseJumpID[MAX_JUMPS]         # ID of closest point to phase jump
+        int phaseJumpDir[MAX_JUMPS]        # Size and direction of phase jump
+        int nPhaseJump                     # Number of phase jumps
+        double rmsPost
+        char clock[16]
+        FitInfo fitinfo
+
         # noise parameters follow
 
-        # T2EFAC
+        # T2EFAC/EQUAD
         int nT2efac
+        int nT2equad
         char T2efacFlagID[MAX_T2EFAC][MAX_FLAG_LEN]
         char T2efacFlagVal[MAX_T2EFAC][MAX_FLAG_LEN]
         double T2efacVal[MAX_T2EFAC]
-
-        # GLOBAL_EFAC in timfile???
-        double T2globalEfac
-
-        # T2EQUAD
-        int nT2equad
         char T2equadFlagID[MAX_T2EQUAD][MAX_FLAG_LEN]
         char T2equadFlagVal[MAX_T2EQUAD][MAX_FLAG_LEN]
         double T2equadVal[MAX_T2EQUAD]
+
+        # GLOBAL_EFAC in timfile???
+        double T2globalEfac
 
         # TNEF
         int nTNEF
@@ -305,7 +314,12 @@ cdef extern from "tempo2.h":
 
         # set reference observation
         char refphs
-        char tzrsite[100]
+
+        double ne_sw_ifuncT[MAX_IFUNC]
+        double ne_sw_ifuncV[MAX_IFUNC]
+        double ne_sw_ifuncE[MAX_IFUNC]
+        int ne_sw_ifuncN
+
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
@@ -804,14 +818,23 @@ cdef class tempopulsar:
             else:
                 raise IOError("Cannot find timfile {0}.".format(timfile))
 
-        parfile_bytes, timfile_bytes = parfile.encode(), timfile.encode()
+        parfile_bytes, timfile_bytes = (parfile + "\0").encode(), (timfile + "\0").encode()
 
-        for checkfile in [parfile_bytes,timfile_bytes]:
-            if len(checkfile) > MAX_FILELEN - 1:
+        for checkfile in [parfile_bytes, timfile_bytes]:
+            if len(checkfile) > MAX_FILELEN:
                 raise IOError("Filename {0} is too long for tempo2.".format(checkfile))
 
-        stdio.sprintf(parFile[0],"%s",<char *>parfile_bytes)
-        stdio.sprintf(timFile[0],"%s",<char *>timfile_bytes)
+        cdef const char *par_file_c_str = parfile_bytes
+        cdef const char *tim_file_c_str = timfile_bytes
+
+        cdef size_t pflen = sizeof(char) * len(parfile_bytes)
+        cdef size_t tflen = sizeof(char) * len(timfile_bytes)
+
+        #strcpy(parFile[0], par_file_c_str)
+        #strcpy(timFile[0], tim_file_c_str)
+
+        stdio.snprintf(parFile[0], pflen, "%s", par_file_c_str)
+        stdio.snprintf(timFile[0], tflen, "%s", tim_file_c_str)
 
         readParfile(self.psr,parFile,timFile,self.npsr)   # load the parameters    (all pulsars)
 
@@ -949,10 +972,13 @@ cdef class tempopulsar:
             return array
 
     def _setstring(self,char* string,maxlen,value):
-        value_bytes = value.encode()
+        value_bytes = (value + "\0").encode()
+        cdef const char *value_c_str = value_bytes
+        cdef size_t vblen = sizeof(char) * len(value_bytes)
 
         if len(value_bytes) < maxlen:
-            stdio.sprintf(string,"%s",<char *>value_bytes)
+            stdio.snprintf(string, vblen, "%s", value_c_str)
+            #strcpy(string, value_c_str)
         else:
             raise ValueError
 
@@ -1034,7 +1060,7 @@ cdef class tempopulsar:
         for i in range(self.psr[0].nobs):
             # make sure fname array is empty
             memset(<char *>&(self.psr[0].obsn[i].fname[0]), 0, MAX_FILELEN * sizeof(char))
-            strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE", 4 * sizeof(char))
+            strncpy(<char *>&(self.psr[0].obsn[i].fname[0]), "FAKE\0", 5 * sizeof(char))
 
         self._inputtoaerrs()
         self._inputobservatory()
@@ -1113,7 +1139,8 @@ cdef class tempopulsar:
 
             # set the observatories
             for i in range(self.psr[0].nobs):
-                strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obsv[i], 100 * sizeof(char))
+                obstr = obsv[i][:99] + b"\0"  # append null character
+                strncpy(<char *>&(self.psr[0].obsn[i].telID[0]), obstr, len(obstr) * sizeof(char))
 
                 # set which corrections to apply (taken from TEMPO2 readTimfile.C)
                 if obsv[i][0] == "@" or obsv[i] == "bat":
@@ -1161,10 +1188,13 @@ cdef class tempopulsar:
 
         def __set__(self,value):
             # this is OK in both Python 2 and 3
-            name_bytes = value.encode()
+            name_bytes = (value + "\0").encode()
+            cdef const char *name_c_str = name_bytes
+            cdef size_t nlen = sizeof(char) * len(name_bytes)
 
             if len(name_bytes) < 100:
-                stdio.sprintf(self.psr[0].name,"%s",<char *>name_bytes)
+                #strcpy(self.psr[0].name, name_c_str)
+                stdio.snprintf(self.psr[0].name, nlen, "%s", name_c_str)
             else:
                 raise ValueError
 
@@ -1175,10 +1205,13 @@ cdef class tempopulsar:
             return string(self.psr[0].binaryModel)
 
         def __set__(self,value):
-            model_bytes = value.encode()
+            model_bytes = (value + "\0").encode()
+            cdef const char *model_c_str = model_bytes
+            cdef size_t mblen = sizeof(char) * len(model_bytes)
 
             if len(model_bytes) < 100:
-                stdio.sprintf(self.psr[0].binaryModel,"%s",<char *>model_bytes)
+                #strcpy(self.psr[0].binaryModel, model_c_str)
+                stdio.snprintf(self.psr[0].binaryModel, mblen, "%s", model_c_str)
             else:
                 raise ValueError
 
@@ -1190,13 +1223,17 @@ cdef class tempopulsar:
 
         def __set__(self,value):
             def seteph(filename,usecalceph=False):
-                model_bytes = filename.encode()
+                model_bytes = (filename + "\0").encode()
+                cdef const char *model_c_str = model_bytes
+                cdef size_t mblen = sizeof(char) * len(model_bytes)
 
                 if len(model_bytes) < MAX_FILELEN:
-                    stdio.sprintf(self.psr[0].JPL_EPHEMERIS,"%s",<char *>model_bytes)
+                    #strcpy(self.psr[0].JPL_EPHEMERIS, model_c_str)
+                    stdio.snprintf(self.psr[0].JPL_EPHEMERIS, mblen, "%s", model_c_str)
 
                     # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS for calceph.
-                    stdio.sprintf(self.psr[0].ephemeris,    "%s",<char *>model_bytes)
+                    #strcpy(self.psr[0].ephemeris, model_c_str)
+                    stdio.snprintf(self.psr[0].ephemeris, mblen, "%s", model_c_str)
 
                     self.psr[0].useCalceph = int(usecalceph)
 
@@ -1236,11 +1273,14 @@ cdef class tempopulsar:
         def __get__(self):
             return string(self.psr[0].clock)
 
-        def __set__(self,value):
-            value_bytes = value.encode()
+        def __set__(self, value):
+            value_bytes = (value + "\0").encode()
+            cdef const char *value_c_str = value_bytes
+            cdef size_t vlen = sizeof(char) * len(value_bytes)
 
             if len(value_bytes) < 16:
-                stdio.sprintf(self.psr[0].clock,"%s",<char *>value_bytes)
+                #strcpy(self.psr[0].clock, value_c_str)
+                stdio.snprintf(self.psr[0].clock, vlen, "%s", value_c_str)
             else:
                 raise ValueError("CLK name '{}' is too long.".format(value))
 
@@ -1698,7 +1738,8 @@ cdef class tempopulsar:
                         # set reference epoch
                         self["TZRMJD"].val = epoch
                     if site is not None:
-                        strncpy(<char *>&(self.psr[0].tzrsite[0]), str.encode(site), 100 * sizeof(char))
+                        sitestr = str.encode(site) + b"\0"  # append null character
+                        strncpy(<char *>&(self.psr[0].tzrsite[0]), sitestr, len(sitestr) * sizeof(char))
                     if freq is not None:
                         self["TZRFRQ"] = freq
                     self.psr[0].refphs = REFPHS_TZR
@@ -2189,12 +2230,16 @@ cdef class tempopulsar:
         if not parfile:
             parfile = self.parfile
 
-        parfile_bytes = parfile.encode()
+        parfile_bytes = (parfile + "\0").encode()
 
-        if len(parfile_bytes) > MAX_FILELEN - 1:
+        cdef const char *parfile_c_bytes = parfile_bytes
+        
+        if len(parfile_bytes) > MAX_FILELEN:
             raise IOError("Parfile name {0} too long for tempo2!".format(parfile))
 
-        stdio.sprintf(parFile,"%s",<char *>parfile_bytes)
+        #cdef const char parFile
+        cdef size_t pflen = sizeof(char) * len(parfile_bytes)
+        stdio.snprintf(parFile, pflen, "%s", parfile_c_bytes)
 
         # void textOutput(pulsar *psr,int npsr,
         #                 double globalParameter,  -- ?
@@ -2219,12 +2264,16 @@ cdef class tempopulsar:
         if not timfile:
             timfile = self.timfile
 
-        timfile_bytes = timfile.encode()
+        timfile_bytes = (timfile + "\0").encode()
 
-        if len(timfile_bytes) > MAX_FILELEN - 1:
+        cdef const char *timfile_c_bytes = timfile_bytes
+
+        if len(timfile_bytes) > MAX_FILELEN:
             raise IOError("Timfile name {0} too long for tempo2!".format(timfile))
 
-        stdio.sprintf(timFile,"%s",<char *>timfile_bytes)
+        #cdef const char *timFile = timfile_bytes
+        cdef size_t tflen = sizeof(char) * len(timfile_bytes)
+        stdio.snprintf(timFile, tflen, "%s", timfile_c_bytes)
 
         writeTim(timFile,&(self.psr[0]),'tempo2')
 

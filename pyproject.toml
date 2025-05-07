@@ -10,7 +10,9 @@
 
 [build-system]
 requires = [
-    "setuptools>=61",
+    "packaging>=24.2",
+    'setuptools>=77, <80; python_version > "3.8"',
+    'setuptools>=74; python_version == "3.8"',
     "setuptools_scm[toml]>=6.2",
     "wheel", # ephem package likes to have wheel installed
     "cython",
@@ -25,9 +27,8 @@ description = "A Python wrapper for tempo2"
 authors = [{name = "Michele Vallisneri", email = "vallis@vallis.org"}]
 urls = { Homepage = "https://github.com/vallis/libstempo" }
 readme = "README.md"
-license = "MIT"
-license-files = [ "LICENSE" ] 
-classifiers=[
+license = { text = "MIT" }
+ classifiers=[
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Operating System :: MacOS",
@@ -71,6 +72,7 @@ dev = [
 
 [tool.setuptools]
 include-package-data = true
+license-files = [ "LICENSE" ]
 
 [tool.setuptools.packages.find]
 include = [
