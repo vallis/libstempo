@@ -827,8 +827,8 @@ cdef class tempopulsar:
         cdef const char *par_file_c_str = parfile_bytes + b"\0"
         cdef const char *tim_file_c_str = timfile_bytes + b"\0"
 
-	pflen = sizeof(char) * (len(parfile_bytes) + 1)
-	tflen = sizeof(char) * (len(timfile_bytes) + 1)
+        pflen = sizeof(char) * (len(parfile_bytes) + 1)
+        tflen = sizeof(char) * (len(timfile_bytes) + 1)
 
         #strcpy(parFile[0], par_file_c_str)
         #strcpy(timFile[0], tim_file_c_str)
@@ -1193,7 +1193,7 @@ cdef class tempopulsar:
 
             if len(name_bytes) < 100 - 1:
                 #strcpy(self.psr[0].name, name_c_str)
-		nlen = sizeof(char) * (len(name_bytes) + 1)
+                nlen = sizeof(char) * (len(name_bytes) + 1)
                 stdio.snprintf(self.psr[0].name, nlen, "%s", name_c_str)
             else:
                 raise ValueError
@@ -1210,7 +1210,7 @@ cdef class tempopulsar:
 
             if len(model_bytes) < 100 - 1:
                 #strcpy(self.psr[0].binaryModel, model_c_str)
-		mblen = sizeof(char) * (len(model_bytes) + 1)
+                mblen = sizeof(char) * (len(model_bytes) + 1)
                 stdio.snprintf(self.psr[0].binaryModel, mblen, "%s", model_c_str)
             else:
                 raise ValueError
@@ -1228,7 +1228,7 @@ cdef class tempopulsar:
 
                 if len(model_bytes) < MAX_FILELEN - 1:
                     #strcpy(self.psr[0].JPL_EPHEMERIS, model_c_str)
-		    mblen = sizeof(char) * (len(model_bytes) + 1)
+                    mblen = sizeof(char) * (len(model_bytes) + 1)
                     stdio.snprintf(self.psr[0].JPL_EPHEMERIS, mblen, "%s", model_c_str)
 
                     # older tempo2 versions use ephemeris instead of JPL_EPHEMERIS for calceph.
@@ -1279,7 +1279,7 @@ cdef class tempopulsar:
 
             if len(value_bytes) < (16 - 1):
                 #strcpy(self.psr[0].clock, value_c_str)
-		vlen = sizeof(char) * (len(value_bytes) + 1)
+                vlen = sizeof(char) * (len(value_bytes) + 1)
                 stdio.snprintf(self.psr[0].clock, vlen, "%s", value_c_str)
             else:
                 raise ValueError("CLK name '{}' is too long.".format(value))
@@ -2236,7 +2236,7 @@ cdef class tempopulsar:
             raise IOError("Parfile name {0} too long for tempo2!".format(parfile))
 
         #cdef const char parFile
-	pflen = sizeof(char) * (len(parfile) + 1)
+        pflen = sizeof(char) * (len(parfile) + 1)
         stdio.snprintf(parFile, pflen, "%s", parfile_bytes)
 
         # void textOutput(pulsar *psr,int npsr,
