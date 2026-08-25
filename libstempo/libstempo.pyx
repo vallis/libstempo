@@ -532,8 +532,9 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
 
     return newpar
 
-cdef create_tempofdjump(pulsar *psr,int ct,int fddmct,object units):
+cdef create_tempofdjump(pulsar *psr,int ct,int instance,object units):
     cdef tempopar newpar = tempopar.__new__(tempopar)
+    cdef int idx = psr.fdjumpIdx[ct]
 
     # TO DO: proper units
     if units:
@@ -543,10 +544,15 @@ cdef create_tempofdjump(pulsar *psr,int ct,int fddmct,object units):
         newpar.unit = None
         newpar.timescale = None
 
-    if psr.fdjumpIdx[ct] == -2:
-        newpar.name = 'FDJUMPDM{0}'.format(fddmct)
+    if idx == -2:
+        newpar.name = 'FDJUMPDM{0}'.format(instance)
+    elif instance == 1:
+        newpar.name = 'FDJUMP{0}'.format(idx)
     else:
-        newpar.name = 'FDJUMP{0}'.format(ct)
+        # Preserve the historical bare name for a singleton. Repeated masks
+        # need a synthetic occurrence suffix because tempo2's par keyword
+        # does not encode it.
+        newpar.name = 'FDJUMP{0}_{1}'.format(idx,instance)
 
     newpar._isjump = 0
     newpar._isfdjump = 1
@@ -887,6 +893,7 @@ cdef class tempopulsar:
 
     def _readpars(self,fixprefiterrors=True):
         cdef parameter *params = self.psr[0].param
+        cdef int idx, instance
 
         # create live proxies for all the parameters
 
@@ -905,11 +912,19 @@ cdef class tempopulsar:
             newpar = create_tempojump(&self.psr[0],ct,self.units)
             self.pardict[newpar.name] = newpar
             
-        fddmct = 0
+        fdjump_counts = {}
         for ct in range(1,self.psr[0].nfdJumps+1):  # jump 1 in the array not used...
-            if self.psr[0].fdjumpIdx[ct] == -2:
-                fddmct += 1
-            newpar = create_tempofdjump(&self.psr[0],ct,fddmct,self.units)
+            idx = self.psr[0].fdjumpIdx[ct]
+            instance = fdjump_counts.get(idx,0) + 1
+            fdjump_counts[idx] = instance
+            newpar = create_tempofdjump(&self.psr[0],ct,instance,self.units)
+            if newpar.name in self.pardict:
+                raise RuntimeError(
+                    "libstempo generated duplicate parameter name "
+                    "{0!r} for FDJUMP slot {1} (fdjumpIdx={2})".format(
+                        newpar.name,ct,idx
+                    )
+                )
             self.pardict[newpar.name] = newpar
 
         # the designmatrix plugin also adds extra parameters for sinusoidal whitening
