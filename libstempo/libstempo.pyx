@@ -174,6 +174,8 @@ cdef extern from "tempo2.h":
         double observatory_earth[6]    # Obs wrt Earth center
         double psrPos[3]       # Unit vector to the pulsar position
         double zenith[3]       # Zenith vector, in BC frame. Length=geodetic height
+        double siteVel[3]      # Observatory velocity wrt the geocentre
+        long double correctionTT_TB    # Correction from TT to TDB/TCB
         long double torb       # Combined binary delay
         long long pulseN       # Pulse number
         long double roemer     # Roemer delay
@@ -309,6 +311,11 @@ cdef extern from "tempo2.h":
 
     void initialise(pulsar *psr, int noWarnings)
     void destroyOne(pulsar *psr)
+
+    # Sum of the clock-correction chain from the site TOA to TT. The chain
+    # itself is obsn[].correctionsTT[0:nclock_correction], so there is no one
+    # struct field to expose.
+    double getCorrectionTT(observation *obs)
 
     void readParfile(pulsar *psr,char parFile[][MAX_FILELEN],char timFile[][MAX_FILELEN],int npsr)
     void readTimfile(pulsar *psr,char timFile[][MAX_FILELEN],int npsr)
@@ -1493,6 +1500,53 @@ cdef class tempopulsar:
             _observatory_earth.strides[1] = sizeof(double)
 
             return numpy.asarray(_observatory_earth)
+
+    property siteVel:
+        """Returns observatory velocity wrt the geocentre as a numpy.double array.
+
+        tempo2 stores the site *position* in ``observatory_earth[0:3]`` and
+        leaves ``[3:6]`` unset, so this is the only source of the velocity;
+        tempo2 itself forms the observatory velocity as
+        ``earth_ssb[3:6] + siteVel`` (``dm_delays.C``). Same units and frame as
+        the neighbouring vectors, i.e. light-seconds per second."""
+
+        def __get__(self):
+            cdef double [:,:] _siteVel = <double [:self.nobs,:3]>&(self.psr[0].obsn[0].siteVel[0])
+            _siteVel.strides[0] = sizeof(observation)
+            _siteVel.strides[1] = sizeof(double)
+
+            return numpy.asarray(_siteVel)
+
+    property correction_tt:
+        """Returns the site clock-chain correction to TT in seconds as a numpy.double array.
+
+        This is the *sum* of ``obsn[].correctionsTT[0:nclock_correction]``,
+        which tempo2 forms in ``getCorrectionTT``. Unlike the other array
+        properties this is a fresh array, not a view: there is no single
+        struct field to point at."""
+
+        def __get__(self):
+            cdef numpy.ndarray[double, ndim=1] out = numpy.empty(self.nobs, dtype=numpy.float64)
+            cdef int i
+
+            for i in range(self.nobs):
+                out[i] = getCorrectionTT(&(self.psr[0].obsn[i]))
+
+            return out
+
+    property correction_tt_tb:
+        """Returns the TT to TDB/TCB correction in seconds as a numpy.longdouble array.
+
+        Which of TDB or TCB depends on the pulsar's UNITS, as everywhere else
+        in tempo2. With :attr:`correction_tt`, ``stoas + (correction_tt +
+        correction_tt_tb) / 86400`` is the observatory arrival time in the
+        chosen realisation."""
+
+        def __get__(self):
+            cdef long double [:] _correction = <long double [:self.nobs]>&(self.psr[0].obsn[0].correctionTT_TB)
+            _correction.strides[0] = sizeof(observation)
+
+            return numpy.asarray(_correction)
 
     property psrPos:
         def __get__(self):
