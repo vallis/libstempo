@@ -1389,6 +1389,21 @@ class tempopulsar:
     def __setitem__(self, key: str, value: Any):
         raise TypeError("Direct assignment to parameters is not supported; set fields like psr['RAJ'].val = x")
 
+    def __contains__(self, key: str) -> bool:
+        """`"TRACK" in psr`, as `tempopulsar.__contains__` answers it.
+
+        Without this, Python falls back to the old iteration protocol for
+        `in`: because `__getitem__` exists and never raises `IndexError`, it
+        asks the worker for `psr[0]`, `psr[1]`, ... forever. A caller writing
+        the natural membership test would simply hang.
+
+        `pars("all")` is `tuple(self.pardict)` and `tempopulsar.__contains__`
+        is `key in self.pardict`, so this is the same test -- over the
+        existing `call` RPC, which keeps the protocol unchanged and works
+        against a worker of any version.
+        """
+        return str(key) in self._rpc("call", name="pars", args=("all",), kwargs={})
+
     # Expose array-like attributes as write-through proxies
     @property
     def stoas(self):
