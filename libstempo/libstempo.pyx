@@ -342,6 +342,65 @@ cdef extern from "t2fit-stub.h":
     void t2UpdateFunc_fdjump(pulsar *psr,int ipsr,param_label label,int k,double val,double err)
 
     void t2fit_fillOneParameterFitInfo(pulsar* psr,param_label fit_param,const int k,FitInfo& OUT)
+    double t2FitFunc_notImplemented(pulsar *psr, int ipsr, double x, int ipos,
+                                    param_label label, int k)
+
+cdef extern from "TKlog.h":
+    unsigned TK_errorCount
+    unsigned TK_warnCount
+
+cdef void _silence_begin(int* saved_out, int* saved_err,
+                         unsigned* saved_errcount, unsigned* saved_warncount):
+    cdef int devnull
+    stdio.fflush(stdio.stdout)
+    stdio.fflush(stdio.stderr)
+    saved_errcount[0] = TK_errorCount
+    saved_warncount[0] = TK_warnCount
+    saved_out[0] = os.dup(1)
+    saved_err[0] = os.dup(2)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 1)
+    os.dup2(devnull, 2)
+    os.close(devnull)
+
+cdef void _silence_end(int saved_out, int saved_err,
+                       unsigned saved_errcount, unsigned saved_warncount):
+    stdio.fflush(stdio.stdout)
+    stdio.fflush(stdio.stderr)
+    os.dup2(saved_out, 1)
+    os.close(saved_out)
+    os.dup2(saved_err, 2)
+    os.close(saved_err)
+    # Cython 3 treats `TK_errorCount = x` as a local; write through the address.
+    (&TK_errorCount)[0] = saved_errcount
+    (&TK_warnCount)[0] = saved_warncount
+
+cdef bint _dispatcher_fittable(pulsar* psr, int ct, int subct):
+    cdef FitInfo fitinfo
+    cdef unsigned n
+    cdef unsigned i
+    cdef paramDerivFunc deriv
+    cdef int saved_out, saved_err
+    cdef unsigned saved_errcount, saved_warncount
+
+    memset(&fitinfo, 0, sizeof(FitInfo))
+    fitinfo.nParams = 0
+    fitinfo.nConstraints = 0
+
+    _silence_begin(&saved_out, &saved_err, &saved_errcount, &saved_warncount)
+    t2fit_fillOneParameterFitInfo(psr, ct, subct, fitinfo)
+    _silence_end(saved_out, saved_err, saved_errcount, saved_warncount)
+
+    n = fitinfo.nParams
+    if n == 0:
+        return False
+    for i in range(n):
+        deriv = fitinfo.paramDerivs[i]
+        if deriv == NULL:
+            return False
+        if deriv == t2FitFunc_notImplemented:
+            return False
+    return True
 
 cdef void set_longdouble_from_array(long double *p,numpy.ndarray[numpy.npy_longdouble,ndim=0] a):
     p[0] = (<long double*>(a.data))[0]
@@ -374,6 +433,7 @@ cdef class tempopar:
     cdef void *_err
     cdef int *_fitFlag
     cdef int *_paramSet
+    cdef pulsar *_psr
 
     def __init__(self,*args,**kwargs):
         raise TypeError("This class cannot be instantiated from Python.")
@@ -463,6 +523,20 @@ cdef class tempopar:
         def __get__(self):
             return True if self._isfdjump else False
 
+    property fittable:
+        def __get__(self):
+            if self._psr == NULL:
+                return False
+            if self._isjump or self._isfdjump:
+                return True
+            return _dispatcher_fittable(self._psr, self.ct, self.subct)
+
+    property identifiable:
+        def __get__(self):
+            if not self.fittable:
+                return False
+            return _column_nonzero(self)
+
     def __str__(self):
         if self.set:
             return 'tempo2 parameter %s (%s): %s +/- %s' % (self.name,'fitted' if self.fit else 'not fitted',repr(self.val),repr(self.err))
@@ -474,7 +548,7 @@ cdef class tempopar:
 
 map_coords = {'RAJ': 'ELONG', 'DECJ': 'ELAT', 'PMRA': 'PMELONG', 'PMDEC': 'PMELAT'}
 
-cdef create_tempopar(parameter par,int ct,int subct,int eclCoord,object units):
+cdef create_tempopar(parameter par,int ct,int subct,int eclCoord,object units,pulsar *psr):
     cdef tempopar newpar = tempopar.__new__(tempopar)
 
     try:
@@ -501,6 +575,7 @@ cdef create_tempopar(parameter par,int ct,int subct,int eclCoord,object units):
     newpar._fitFlag = &par.fitFlag[subct]
     newpar._paramSet = &par.paramSet[subct]
 
+    newpar._psr = psr
     newpar.ct = ct
     newpar.subct = subct
 
@@ -527,6 +602,7 @@ cdef create_tempojump(pulsar *psr,int ct,object units):
     newpar._err = &psr.jumpValErr[ct]
     newpar._fitFlag = &psr.fitJump[ct]
 
+    newpar._psr = psr
     newpar.ct = param_JUMP
     newpar.subct = ct
 
@@ -555,10 +631,59 @@ cdef create_tempofdjump(pulsar *psr,int ct,int fddmct,object units):
     newpar._err = &psr.fdjumpValErr[ct]
     newpar._fitFlag = &psr.fitfdJump[ct]
 
+    newpar._psr = psr
     newpar.ct = param_FDJUMP
     newpar.subct = ct
 
     return newpar
+
+cdef bint _column_nonzero(tempopar par):
+    cdef unsigned i
+    cdef double v
+    cdef pulsar *psr = par._psr
+    cdef long double epoch
+    cdef paramDerivFunc deriv
+    cdef FitInfo fitinfo
+    cdef int saved_out, saved_err
+    cdef unsigned saved_errcount, saved_warncount
+
+    if psr == NULL or psr.nobs <= 0:
+        return False
+
+    updateBatsAll(psr, 1)
+
+    if par._isjump:
+        for i in range(<unsigned>psr.nobs):
+            v = t2FitFunc_jump(psr, 0, 0.0, <int>i, param_JUMP, par.subct)
+            if v != 0.0:
+                return True
+        return False
+
+    if par._isfdjump:
+        for i in range(<unsigned>psr.nobs):
+            v = t2FitFunc_fdjump(psr, 0, 0.0, <int>i, param_FDJUMP, par.subct)
+            if v != 0.0:
+                return True
+        return False
+
+    memset(&fitinfo, 0, sizeof(FitInfo))
+    fitinfo.nParams = 0
+    _silence_begin(&saved_out, &saved_err, &saved_errcount, &saved_warncount)
+    t2fit_fillOneParameterFitInfo(psr, par.ct, par.subct, fitinfo)
+    _silence_end(saved_out, saved_err, saved_errcount, saved_warncount)
+    if fitinfo.nParams == 0 or fitinfo.paramDerivs[0] == NULL:
+        return False
+    if fitinfo.paramDerivs[0] == t2FitFunc_notImplemented:
+        return False
+
+    deriv = fitinfo.paramDerivs[0]
+    epoch = psr.param[param_pepoch].val[0]
+    for i in range(<unsigned>psr.nobs):
+        v = deriv(psr, 0, psr.obsn[i].bbat - epoch, <int>i,
+                  fitinfo.paramIndex[0], fitinfo.paramCounters[0])
+        if v != 0.0:
+            return True
+    return False
 
 # TODO: check if consistent with new API
 cdef class GWB:
@@ -897,7 +1022,7 @@ cdef class tempopulsar:
                 if fixprefiterrors and not params[ct].fitFlag[subct]:
                     params[ct].prefitErr[subct] = 0
 
-                newpar = create_tempopar(params[ct],ct,subct,self.psr[0].eclCoord,self.units)
+                newpar = create_tempopar(params[ct],ct,subct,self.psr[0].eclCoord,self.units,&self.psr[0])
                 newpar.err = params[ct].prefitErr[subct]
                 self.pardict[newpar.name] = newpar
 
@@ -1256,19 +1381,47 @@ cdef class tempopulsar:
 
         - if `which` is 'fit' (default), fitted parameters;
         - if `which` is 'set', all parameters with a defined value;
-        - if `which` is 'all', all parameters."""
-
+        - if `which` is 'all', all parameters;
+        - if `which` is 'fittable', set parameters for which tempo2 would install
+          a usable LS derivative on this pulsar in its current state;
+        - if `which` is 'identifiable', the subset of those whose derivative is
+          nonzero on some current observation;
+        - if `which` is a sequence of names (not a str), that sequence.
+        """
         if which == 'fit':
-            return tuple(key for key in self.pardict if self.pardict[key].fit and key not in self.excludepars)
+            return tuple(key for key in self.pardict
+                         if self.pardict[key].fit and key not in self.excludepars)
         elif which == 'set':
             return tuple(key for key in self.pardict if self.pardict[key].set)
         elif which == 'all':
             return tuple(self.pardict)
-        elif isinstance(which,collections.abc.Iterable):
-            # to support vals() with which=sequence
+        elif which == 'fittable':
+            return tuple(
+                key for key in self.pardict
+                if self.pardict[key].set and self.pardict[key].fittable
+            )
+        elif which == 'identifiable':
+            self.updatebats()
+            return tuple(
+                key for key in self.pardict
+                if self.pardict[key].set and self.pardict[key].identifiable
+            )
+        elif isinstance(which, collections.abc.Iterable) and not isinstance(which, (str, bytes)):
             return which
         else:
-            raise KeyError
+            raise KeyError(
+                "pars(which={0!r}) is not one of "
+                "'fit', 'set', 'all', 'fittable', 'identifiable' "
+                "(or a sequence of names)".format(which)
+            )
+
+    def fittable(self, name):
+        """True if tempo2 would install a usable LS derivative for ``name``."""
+        return self[name].fittable
+
+    def identifiable(self, name):
+        """True if ``name`` is fittable and its derivative is not identically zero."""
+        return self[name].identifiable
 
     # --- number of observations
     property nobs:

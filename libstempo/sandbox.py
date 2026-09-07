@@ -1353,6 +1353,8 @@ class tempopulsar:
             "designmatrix",
             "toas",
             "fit",
+            "fittable",
+            "identifiable",
             "vals",
             "errs",
             "pars",

@@ -14,3 +14,6 @@ void t2UpdateFunc_fdjump(struct pulsar *psr,int ipsr,param_label label,int k,dou
 // defined in t2fit.C, not declared in t2fit.h
 
 void t2fit_fillOneParameterFitInfo(struct pulsar *psr,param_label fit_param,const int k,FitInfo& OUT);
+
+double t2FitFunc_notImplemented(struct pulsar *psr,int ipsr,double x,int ipos,
+                                param_label label,int k);
